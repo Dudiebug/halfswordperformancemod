@@ -10,6 +10,9 @@ combat changes.
   body's bones directly, so that work disappears.
 - **Off-screen armour is skipped.** The stock game makes each armour piece's bounds ten times too big, so armour
   behind the camera still draws and casts shadows. The mod gives armour the body's bounds.
+- **Weapons lying still stop ticking.** Every weapon in the level runs code each frame for its swing and slide
+  sounds, even one asleep on the floor. The mod pauses that on weapons at rest with nothing pending, and resumes it
+  the moment one moves or is picked up.
 - **Optional: no shadows from distant armour.** Off by default.
 - **Optional: no blood or dent painting.** Off by default; this is the game's own switch.
 - **Frame time counters** on a key, and a performance line in `HSPerf.log`.
@@ -33,7 +36,7 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 | Key | Does |
 |---|---|
 | F10 | Frame time counters on or off |
-| Ctrl + F10 | Armour fixes off or on, to compare with the stock game |
+| Ctrl + F10 | Armour and weapon fixes off or on, to compare with the stock game |
 
 ## Settings (`HSPerf.ini`)
 
@@ -47,6 +50,8 @@ Restart the game after you change a setting.
 | `shadow_trim` | 0 | 1: armour on far fighters casts no shadow |
 | `shadow_trim_meters` | 15 | How far "far" is |
 | `vertex_paint` | 1 | 0: no blood or dents painted on bodies and armour |
+| `idle_weapons` | 1 | Weapons lying still stop ticking until they move or are picked up |
+| `skip_empty_gamemode_tick` | 0 | 1: skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |
 | `log_seconds` | 10 | A performance line in `HSPerf.log` every N seconds (0 = never) |
 

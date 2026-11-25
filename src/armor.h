@@ -35,6 +35,7 @@ private:
     bool active_ = true;
     bool prepared_ = false, unusable_ = false;
     ue::UClass* willie_ = nullptr;
+    int32_t willieIndex_ = -1;          // its object array slot: a level change that unloads the class prepares again
     ue::UObject* statics_ = nullptr;    // GameplayStatics CDO
     ue::PreparedCall allActors_;        // GetAllActorsOfClass, its output array reused (released by the engine)
     // Pieces seen on the last pass. Rebuilt every pass from the fighters' own Worn Armor arrays, so a destroyed piece

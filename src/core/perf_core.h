@@ -16,6 +16,8 @@ struct Settings {
     bool shadowTrim = false;         // armour on fighters farther than shadowTrimMeters casts no shadow
     double shadowTrimMeters = 15.0;
     bool vertexPaint = true;         // false: the game's own "Force Disable Vertex Paint" on every fighter (no blood/dents)
+    bool idleWeapons = true;         // weapons asleep on the floor with nothing pending stop ticking until they wake
+    bool skipEmptyGameModeTick = false;   // skip the game mode's empty Blueprint tick body (saves about a microsecond)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
     int forceUnknownBuild = 0;
@@ -77,6 +79,8 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "shadow_trim") s.shadowTrim = ParseBool(v, s.shadowTrim);
         else if (k == "shadow_trim_meters") { const double m = std::atof(v.c_str()); if (m >= 1 && m <= 500) s.shadowTrimMeters = m; }
         else if (k == "vertex_paint") s.vertexPaint = ParseBool(v, s.vertexPaint);
+        else if (k == "idle_weapons") s.idleWeapons = ParseBool(v, s.idleWeapons);
+        else if (k == "skip_empty_gamemode_tick") s.skipEmptyGameModeTick = ParseBool(v, s.skipEmptyGameModeTick);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
         else if (k == "force_unknown_build") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 2) s.forceUnknownBuild = n; }

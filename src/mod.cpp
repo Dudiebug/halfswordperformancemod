@@ -8,6 +8,7 @@
 #include "config.h"
 #include "core/perf_core.h"
 #include "log.h"
+#include "weapons.h"
 #include "ue/engine.h"
 #include <windows.h>
 #include <atomic>
@@ -25,6 +26,10 @@ std::atomic<NativeFn> g_orig{nullptr};
 std::atomic<uint64_t> g_lastTickMs{0};
 core::Settings g_settings;
 std::unique_ptr<ArmorFixes> g_armor;
+std::unique_ptr<WeaponFixes> g_weapons;
+// The original Func is ProcessInternal running the game mode's ReceiveTick body, which is empty in this build
+// (it only stores DeltaSeconds): with skip_empty_gamemode_tick it is not run. Never set when another mod's Func is there.
+std::atomic<bool> g_skipOrig{false};
 
 double NowMs() {
     static LARGE_INTEGER freq = [] { LARGE_INTEGER f; QueryPerformanceFrequency(&f); return f; }();
@@ -61,7 +66,8 @@ void Keys(UObject* gameMode) {
     if (down && !g_tick.keyDown) {
         if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
             g_armor->SetActive(!g_armor->Active());
-            HSP_LOG("key: armour fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
+            g_weapons->SetActive(g_armor->Active());
+            HSP_LOG("key: armour and weapon fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
             g_tick.frames.Reset();   // the next perf line covers one setting only
             g_tick.lastLog = g_tick.lastFrame;
         } else {
@@ -78,16 +84,19 @@ void OnGameTick(UObject* gameMode) {
     if (g_tick.lastFrame > 0) g_tick.frames.Add(now - g_tick.lastFrame);
     g_tick.lastFrame = now;
     Keys(gameMode);
+    g_weapons->Frame();
     if (now - g_tick.lastPass >= kPassMs) {
         g_tick.lastPass = now;
         g_armor->Pass(gameMode);
+        g_weapons->Pass(gameMode);
     }
     if (g_settings.logSeconds > 0 && now - g_tick.lastLog >= g_settings.logSeconds * 1000.0) {
         if (g_tick.frames.Count() > 0) {
             const ArmorCounts c = g_armor->Counts();
-            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d, armour pieces %d (leader pose %d, shadow off %d), fixes %s",
+            const WeaponCounts wc = g_weapons->Counts();
+            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d, armour pieces %d (leader pose %d, shadow off %d), weapons %d (tick off %d), fixes %s",
                     g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, c.pieces,
-                    c.leader, c.shadowOff, g_armor->Active() ? "on" : "OFF");
+                    c.leader, c.shadowOff, wc.weapons, wc.tickOff, g_armor->Active() ? "on" : "OFF");
         }
         g_tick.frames.Reset();
         g_tick.lastLog = now;
@@ -96,7 +105,8 @@ void OnGameTick(UObject* gameMode) {
 
 // Func of the game mode's ReceiveTick. Signature of every native thunk: (Context, FFrame& Stack, RESULT_DECL).
 void TickThunk(UObject* context, void* stack, void* result) {
-    if (NativeFn orig = g_orig.load(std::memory_order_acquire)) orig(context, stack, result);
+    if (!g_skipOrig.load(std::memory_order_relaxed))
+        if (NativeFn orig = g_orig.load(std::memory_order_acquire)) orig(context, stack, result);
     g_lastTickMs.store(GetTickCount64(), std::memory_order_relaxed);
     OnGameTick(context);
 }
@@ -114,9 +124,11 @@ void TryInstall() {
     if (prev && reinterpret_cast<void*>(prev) != cur)
         HSP_LOG("tick: ReceiveTick's Func changed (%p, was %p): another mod swapped it; chaining to the new one", cur, reinterpret_cast<void*>(prev));
     const bool vm = IsScriptFunction(fn);
+    g_skipOrig.store(vm && g_settings.skipEmptyGameModeTick, std::memory_order_relaxed);
     g_orig.store(reinterpret_cast<NativeFn>(cur), std::memory_order_release);
     SetFunctionNative(fn, reinterpret_cast<void*>(&TickThunk));
-    HSP_LOG("tick: on %s.ReceiveTick (Func was %s)", kGameModeClass, vm ? "the script VM" : "another mod's");
+    HSP_LOG("tick: on %s.ReceiveTick (Func was %s)%s", kGameModeClass, vm ? "the script VM" : "another mod's",
+            g_skipOrig.load() ? "; its empty Blueprint body is skipped" : "");
 }
 }  // namespace
 
@@ -132,6 +144,7 @@ DWORD WINAPI ModMain(void*) {
     }
     if (!SelfTest()) { HSP_LOG("engine: self test failed; the mod stays off"); return 0; }
     g_armor = std::make_unique<ArmorFixes>(g_settings);
+    g_weapons = std::make_unique<WeaponFixes>(g_settings);
     for (;;) {
         if (GetTickCount64() - g_lastTickMs.load(std::memory_order_relaxed) > 2000) TryInstall();
         Sleep(1000);

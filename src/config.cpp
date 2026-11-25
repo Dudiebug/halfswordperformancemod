@@ -20,7 +20,11 @@ constexpr const char* kDefaultIni =
     "shadow_trim_meters=15\n"
     "; 0 turns off blood and dents painted on bodies and armour (the game's own switch).\n"
     "vertex_paint=1\n"
-    "; Shows the frame time counters. Ctrl + this key turns the armour fixes off and on, to compare.\n"
+    "; Weapons lying still on the floor stop ticking until something moves or picks them up.\n"
+    "idle_weapons=1\n"
+    "; Skips the game mode's empty per-frame Blueprint (saves about a microsecond a frame).\n"
+    "skip_empty_gamemode_tick=0\n"
+    "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare.\n"
     "overlay_key=F10\n"
     "; A performance line in HSPerf.log every N seconds (0 = never).\n"
     "log_seconds=10\n";
@@ -45,8 +49,8 @@ core::Settings LoadSettings() {
         text = kDefaultIni;
     }
     const core::Settings s = core::ParseSettings(text);
-    HSP_LOG("config: enabled %d, armor_leader_pose %d, armor_bounds %d, shadow_trim %d (%.0f m), vertex_paint %d, overlay_key 0x%02X, log_seconds %d",
-            s.enabled, s.armorLeaderPose, s.armorBounds, s.shadowTrim, s.shadowTrimMeters, s.vertexPaint, s.overlayKey, s.logSeconds);
+    HSP_LOG("config: enabled %d, armor_leader_pose %d, armor_bounds %d, shadow_trim %d (%.0f m), vertex_paint %d, idle_weapons %d, skip_empty_gamemode_tick %d, overlay_key 0x%02X, log_seconds %d",
+            s.enabled, s.armorLeaderPose, s.armorBounds, s.shadowTrim, s.shadowTrimMeters, s.vertexPaint, s.idleWeapons, s.skipEmptyGameModeTick, s.overlayKey, s.logSeconds);
     return s;
 }
 

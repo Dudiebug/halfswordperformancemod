@@ -32,11 +32,17 @@ bool SetCastShadow(UObject* comp, bool on) {
 }  // namespace
 
 bool ArmorFixes::Prepare() {
+    if (prepared_ && willie_ && ObjectAt(willieIndex_) != reinterpret_cast<UObject*>(willie_)) {
+        prepared_ = unusable_ = false;
+        pieces_.clear();
+        farFighters_.clear();
+    }
     if (prepared_) return !unusable_;
     willie_ = FindClass("Willie_BP_C");
     UObject* gs = FindObject("GameplayStatics", "Class");
     if (!willie_ || !gs) return false;   // not loaded yet: asked again next pass
     prepared_ = true;
+    willieIndex_ = ObjectIndex(reinterpret_cast<UObject*>(willie_));
     statics_ = DefaultObject(reinterpret_cast<UClass*>(gs));
     allActors_ = PreparedCall(reinterpret_cast<UClass*>(gs), "GetAllActorsOfClass", {"WorldContextObject", "ActorClass", "OutActors"});
     // Every name this mod passes, checked once against the running build (a missing one = that fix stays off).
