@@ -26,10 +26,11 @@ public:
     ArmorCounts Counts() const { return counts_; }
 
 private:
-    struct Piece { bool leader = false; bool shadowOff = false; };
+    struct Piece { bool leader = false; bool shadowOff = false; float scale = 0; };   // scale: the game's BoundsScale, 0 = untouched
     bool Prepare();
     bool CameraLocation(ue::UObject* gameMode, ue::FVector& out);
     void FixPiece(ue::UObject* piece, ue::UObject* body, Piece& rec, bool wantShadow);
+    void LogBounds(ue::UObject* fighter, ue::UObject* body, ue::UObject* piece);   // for the in-game check of armor_bounds
 
     const core::Settings s_;
     bool active_ = true;
@@ -44,6 +45,9 @@ private:
     std::unordered_map<ue::UObject*, bool> farFighters_;   // fighter -> its armour's shadows are off
     ArmorCounts counts_;
     int failures_ = 0;
+    int passes_ = 0;
+    bool loggedBody_ = false;
+    ue::UObject* kismet_ = nullptr;
 };
 
 }  // namespace hsp

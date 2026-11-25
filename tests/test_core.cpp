@@ -9,7 +9,7 @@ static int g_fail = 0;
 
 static void TestDefaults() {
     const Settings s = ParseSettings("");
-    CHECK(s.enabled && s.armorLeaderPose && s.armorBounds && !s.shadowTrim && s.vertexPaint);
+    CHECK(s.enabled && s.armorLeaderPose && !s.armorBounds && !s.shadowTrim && s.vertexPaint);
     CHECK(s.idleWeapons && !s.skipEmptyGameModeTick);
     CHECK(s.overlayKey == 0x79 && s.logSeconds == 10 && s.shadowTrimMeters == 15.0);
 }
@@ -17,11 +17,11 @@ static void TestDefaults() {
 static void TestParse() {
     const Settings s = ParseSettings(
         "; comment\n[other]\nenabled=0\n[Perf]\r\nshadow_trim = on ; trailing\nshadow_trim_meters=25\n"
-        "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=0\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=1\n");
+        "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=1\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=1\n");
     CHECK(!s.idleWeapons && s.skipEmptyGameModeTick);
     CHECK(s.enabled);               // [other] is not read
     CHECK(s.shadowTrim && s.shadowTrimMeters == 25.0);
-    CHECK(!s.vertexPaint && s.overlayKey == 0x78 && s.logSeconds == 30 && !s.armorBounds && s.forceUnknownBuild == 2);
+    CHECK(!s.vertexPaint && s.overlayKey == 0x78 && s.logSeconds == 30 && s.armorBounds && s.forceUnknownBuild == 2);
 }
 
 static void TestBadValues() {

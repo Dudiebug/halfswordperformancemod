@@ -12,7 +12,7 @@ namespace hsp::core {
 struct Settings {
     bool enabled = true;
     bool armorLeaderPose = true;     // armour pieces follow the body's bones instead of copying them with an anim blueprint
-    bool armorBounds = true;         // armour pieces use the body's bounds (off-screen armour and its shadows get culled)
+    bool armorBounds = false;        // leader-pose armour drops the game's 10x bounds (until checked in game)
     bool shadowTrim = false;         // armour on fighters farther than shadowTrimMeters casts no shadow
     double shadowTrimMeters = 15.0;
     bool vertexPaint = true;         // false: the game's own "Force Disable Vertex Paint" on every fighter (no blood/dents)

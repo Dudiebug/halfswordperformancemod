@@ -8,8 +8,8 @@ combat changes.
 - **Armour follows the body directly.** In the stock game, each worn armour piece runs its own animation to copy
   the body's pose every frame. A fully armoured fighter can have twenty of them. The mod makes each piece use the
   body's bones directly, so that work disappears.
-- **Off-screen armour is skipped.** The stock game makes each armour piece's bounds ten times too big, so armour
-  behind the camera still draws and casts shadows. The mod gives armour the body's bounds.
+- **Optional: tighter armour bounds.** The stock game makes each armour piece's bounds ten times too big. With
+  `armor_bounds=1` the mod drops that, so armour behind the camera can be skipped. Off by default while it is checked.
 - **Weapons lying still stop ticking.** Every weapon in the level runs code each frame for its swing and slide
   sounds, even one asleep on the floor. The mod pauses that on weapons at rest with nothing pending, and resumes it
   the moment one moves or is picked up.
@@ -46,7 +46,7 @@ Restart the game after you change a setting.
 |---|---|---|
 | `enabled` | 1 | 0 turns the whole mod off |
 | `armor_leader_pose` | 1 | Armour follows the body's bones directly |
-| `armor_bounds` | 1 | Armour uses the body's bounds, so off-screen armour is skipped |
+| `armor_bounds` | 0 | Armour drops the game's 10x bounds, so off-screen armour can be skipped (being checked) |
 | `shadow_trim` | 0 | 1: armour on far fighters casts no shadow |
 | `shadow_trim_meters` | 15 | How far "far" is |
 | `vertex_paint` | 1 | 0: no blood or dents painted on bodies and armour |
