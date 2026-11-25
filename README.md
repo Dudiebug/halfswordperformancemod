@@ -16,6 +16,7 @@ combat changes.
 - **Optional: no shadows from distant armour.** Off by default.
 - **Optional: no blood or dent painting.** Off by default; this is the game's own switch.
 - **Frame time counters** on a key, and a performance line in `HSPerf.log`.
+- **Blueprint profiler** (ported from HSMMod's): records which Blueprints and engine calls take the frame time.
 
 It works together with Half Sword Multiplayer (HSMMod), HS Enhancer, UE4SS and ReShade.
 
@@ -37,6 +38,21 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 |---|---|
 | F10 | Frame time counters on or off |
 | Ctrl + F10 | Armour and weapon fixes off or on, to compare with the stock game |
+| Ctrl + Shift + F10 | Blueprint profiler: records up to 30 s (press again to stop early) |
+
+## Profiler
+
+Ctrl + Shift + F10 starts a capture; `HSPerf.log` says when it starts and stops. It writes `HSPerfProfile-<date>-<time>.txt`
+(the Blueprints and engine calls by time per frame, and the frame times) and a `.json` timeline next to the game exe.
+Open the `.json` in [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`.
+
+- `bp` rows are Blueprints the engine runs (ticks, hits, animation inputs). A Blueprint calling another one is counted
+  inside the caller.
+- `native` rows are engine functions a Blueprint calls (traces, component and math calls).
+- It does not see animation, physics or rendering on other threads.
+- Frames run slower while it records (it times every call); compare rows with each other, not with an uncaptured frame.
+- A level change ends the capture.
+- With HSMMod installed it does nothing: use HSMMod's own profiler (Ctrl+Shift+P), which also sees Blueprint-to-Blueprint calls.
 
 ## Settings (`HSPerf.ini`)
 

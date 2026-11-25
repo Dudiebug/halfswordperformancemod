@@ -91,6 +91,10 @@ uint32_t FunctionFlags(const UFunction* f);
 std::vector<FProperty*> Params(const UFunction* f);
 void* FunctionNative(const UFunction* f);           // UFunction::Func: the native thunk, or ProcessInternal for script functions
 void SetFunctionNative(UFunction* f, void* native);   // swaps UFunction::Func (the caller keeps the old pointer to chain to)
+// A Blueprint event stub's ubergraph and its entry offset. When set (and the engine's event-graph fast call is compiled
+// in), ProcessEvent invokes the ubergraph's Func directly and never this function's Func.
+UFunction* EventGraphFunction(const UFunction* f);
+int32_t EventGraphCallOffset(const UFunction* f);
 // This build's FFrame::Step(FFrame* Stack, UObject* Context, void* Result), which evaluates the next bytecode expression of
 // Stack into Result: how a native thunk reads its parameters when a Blueprint calls it. nullptr = prologue not verified.
 void* FrameStepAddress();

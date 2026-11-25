@@ -8,6 +8,7 @@
 #include "config.h"
 #include "core/perf_core.h"
 #include "log.h"
+#include "profiler.h"
 #include "weapons.h"
 #include "ue/engine.h"
 #include <windows.h>
@@ -60,11 +61,15 @@ struct TickState {
 };
 TickState g_tick;
 
+void TickThunk(UObject* context, void* stack, void* result);
+
 void Keys(UObject* gameMode) {
     if (!g_settings.overlayKey) return;
     const bool down = GameHasFocus() && (GetAsyncKeyState(g_settings.overlayKey) & 0x8000);
     if (down && !g_tick.keyDown) {
-        if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) {
+            HSP_LOG("%s", prof::Toggle(gameMode, reinterpret_cast<void*>(&TickThunk)).c_str());
+        } else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
             g_armor->SetActive(!g_armor->Active());
             g_weapons->SetActive(g_armor->Active());
             HSP_LOG("key: armour and weapon fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
@@ -81,12 +86,18 @@ void Keys(UObject* gameMode) {
 
 void OnGameTick(UObject* gameMode) {
     const double now = NowMs();
-    if (g_tick.lastFrame > 0) g_tick.frames.Add(now - g_tick.lastFrame);
+    const double gap = g_tick.lastFrame > 0 ? now - g_tick.lastFrame : 0;
+    if (g_tick.lastFrame > 0) g_tick.frames.Add(gap);
     g_tick.lastFrame = now;
+    if (const std::string msg = prof::Frame(gameMode, gap); !msg.empty()) HSP_LOG("%s", msg.c_str());
     Keys(gameMode);
-    g_weapons->Frame();
+    {
+        prof::Scope s("weapon wake check");
+        g_weapons->Frame();
+    }
     if (now - g_tick.lastPass >= kPassMs) {
         g_tick.lastPass = now;
+        prof::Scope s("armour and weapon pass");
         g_armor->Pass(gameMode);
         g_weapons->Pass(gameMode);
     }
@@ -129,6 +140,10 @@ void TryInstall() {
     SetFunctionNative(fn, reinterpret_cast<void*>(&TickThunk));
     HSP_LOG("tick: on %s.ReceiveTick (Func was %s)%s", kGameModeClass, vm ? "the script VM" : "another mod's",
             g_skipOrig.load() ? "; its empty Blueprint body is skipped" : "");
+    // If this is set, ProcessEvent may call the ubergraph directly and the swap above never runs: no perf lines follow.
+    UFunction* graph = EventGraphFunction(fn);
+    HSP_LOG("tick: ReceiveTick EventGraphFunction %s (offset %d)", graph ? ObjectName(reinterpret_cast<UObject*>(graph)).c_str() : "none",
+            EventGraphCallOffset(fn));
 }
 }  // namespace
 

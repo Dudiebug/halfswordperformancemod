@@ -567,6 +567,9 @@ int32_t ParamsSize(const UFunction* f) { return Read<int32_t>(f, kStructSize); }
 uint32_t FunctionFlags(const UFunction* f) { return Read<uint32_t>(f, kFuncFlags); }
 
 void* FunctionNative(const UFunction* f) { return f ? Read<void*>(f, kFuncNative) : nullptr; }
+// UE 5.4 UFunction: EventGraphFunction (UFunction*) and EventGraphCallOffset (int32) sit right before Func.
+UFunction* EventGraphFunction(const UFunction* f) { return f ? Read<UFunction*>(f, kFuncNative - 0x10) : nullptr; }
+int32_t EventGraphCallOffset(const UFunction* f) { return f ? Read<int32_t>(f, kFuncNative - 0x08) : 0; }
 void SetFunctionNative(UFunction* f, void* native) { if (f) std::memcpy(reinterpret_cast<uint8_t*>(f) + kFuncNative, &native, sizeof native); }
 
 namespace {

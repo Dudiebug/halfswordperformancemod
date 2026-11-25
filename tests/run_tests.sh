@@ -8,6 +8,8 @@ CXX=${CXX:-$(command -v c++ || command -v g++ || command -v clang++ || true)}
 mkdir -p build
 "$CXX" -std=c++20 -Wall -Wextra -Werror -O1 -Isrc tests/test_core.cpp -o build/test_core
 ./build/test_core
+"$CXX" -std=c++20 -Wall -Wextra -Werror -O1 -Isrc tests/test_prof.cpp -o build/test_prof
+./build/test_prof
 python3 tools/gen_winhttp_proxy.py --check 2>/dev/null || python tools/gen_winhttp_proxy.py --check
 # Windows only: the built proxy loads and forwards to System32's winhttp.dll.
 if [ -e build/winhttp.dll ] && [ "${OS:-}" = Windows_NT ]; then
