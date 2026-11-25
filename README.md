@@ -50,6 +50,11 @@ Restart the game after you change a setting.
 | `overlay_key` | F10 | The counters key (`none` for no key) |
 | `log_seconds` | 10 | A performance line in `HSPerf.log` every N seconds (0 = never) |
 
+## Building
+
+The mod is built with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw) and needs no Visual Studio. Run
+`./build.sh` to build it into `build/winhttp.dll`, and `tests/run_tests.sh` to run the tests.
+
 ## License
 
 MIT. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.
