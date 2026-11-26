@@ -153,8 +153,15 @@ DWORD WINAPI ModMain(void*) {
     g_settings = LoadSettings();
     if (!g_settings.enabled) { HSP_LOG("disabled in HSPerf.ini"); return 0; }
     if (!Init(g_settings.forceUnknownBuild)) { HSP_LOG("engine: not a supported game build; the mod stays off"); return 0; }
-    for (int i = 0; !FindObject("KismetMathLibrary", "Class"); ++i) {
-        if (i > 600) { HSP_LOG("engine: Kismet classes never loaded; the mod stays off"); return 0; }
+    // Wait for the function, not just the class: a native class exists a moment before its functions are linked to it
+    // (seen under Proton, where the mod's thread gets here sooner).
+    for (int i = 0;; ++i) {
+        UObject* math = FindObject("KismetMathLibrary", "Class");
+        if (math && FindFunction(reinterpret_cast<UClass*>(math), "Add_IntInt")) {
+            if (i) HSP_LOG("engine: Kismet functions ready after %.1f s", i * 0.5);
+            break;
+        }
+        if (i > 600) { HSP_LOG("engine: Kismet functions never loaded (class %s); the mod stays off", math ? "found" : "missing"); return 0; }
         Sleep(500);
     }
     if (!SelfTest()) { HSP_LOG("engine: self test failed; the mod stays off"); return 0; }
