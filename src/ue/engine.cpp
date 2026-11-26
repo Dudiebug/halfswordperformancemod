@@ -993,6 +993,8 @@ std::string ReadFString(const void* fstring) {
     return out;
 }
 
+// ProcessEvent can return without running the function while the engine is still starting (seen under Proton: the
+// sum came back 0 with 22731 objects loaded), so the call is retried for up to 2 minutes before the mod gives up.
 bool SelfTest() {
     UObject* math = FindObject("KismetMathLibrary", "Class");
     UFunction* add = math ? FindFunction(reinterpret_cast<UClass*>(math), "Add_IntInt") : nullptr;
@@ -1004,10 +1006,17 @@ bool SelfTest() {
     bool indexOk = ObjectAt(ObjectIndex(math)) == math;
     HSP_LOG("selftest: object index round trip %s", indexOk ? "ok" : "MISMATCH");
     if (!indexOk) return false;
-    Call c(DefaultObject(reinterpret_cast<UClass*>(math)), add);
-    c.set<int32_t>("A", 2).set<int32_t>("B", 3).invoke();
-    int32_t sum = c.get<int32_t>("ReturnValue");
-    HSP_LOG("selftest: ProcessEvent Add_IntInt(2,3) = %d", sum);
+    int32_t sum = 0;
+    int tries = 0;
+    for (; tries < 240; ++tries) {
+        Call c(DefaultObject(reinterpret_cast<UClass*>(math)), add);
+        c.set<int32_t>("A", 2).set<int32_t>("B", 3).invoke();
+        sum = c.get<int32_t>("ReturnValue");
+        if (sum == 5) break;
+        Sleep(500);
+    }
+    if (tries) HSP_LOG("selftest: ProcessEvent Add_IntInt(2,3) = %d after %.1f s of retries (the engine was still starting)", sum, tries * 0.5);
+    else HSP_LOG("selftest: ProcessEvent Add_IntInt(2,3) = %d", sum);
     return sum == 5 && IsName(math, "KismetMathLibrary");
 }
 
