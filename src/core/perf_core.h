@@ -11,15 +11,23 @@
 
 namespace hsp::core {
 
+// HSPerf.ini files written before this version keep their own value for every key except the ones whose default
+// changed with it (armor_bounds, shadow_trim and skip_empty_gamemode_tick in 2): those take the new default.
+constexpr int kSettingsVersion = 2;
+
 struct Settings {
     bool enabled = true;
     bool armorLeaderPose = true;     // armour pieces follow the body's bones instead of copying them with an anim blueprint
-    bool armorBounds = false;        // leader-pose armour drops the game's 10x bounds (until checked in game)
-    bool shadowTrim = false;         // armour on fighters farther than shadowTrimMeters casts no shadow
+    bool armorBounds = true;         // leader-pose armour drops the game's 10x bounds
+    bool shadowTrim = true;          // armour on fighters farther than shadowTrimMeters casts no shadow
     double shadowTrimMeters = 15.0;
     bool vertexPaint = true;         // false: the game's own "Force Disable Vertex Paint" on every fighter (no blood/dents)
     bool idleWeapons = true;         // weapons asleep on the floor with nothing pending stop ticking until they wake
-    bool skipEmptyGameModeTick = false;   // skip the game mode's empty Blueprint tick body (saves about a microsecond)
+    bool skipEmptyGameModeTick = true;    // skip the game mode's empty Blueprint tick body (saves about a microsecond)
+    bool corpseSleep = true;         // dead fighters lying still stop ticking until something moves them
+    bool bodyBounds = true;          // the body drops the game's 1000x bounds
+    bool headLeaderPose = true;      // head and skeleton meshes follow the body's bones
+    bool armorRayTracing = false;    // false: armour is left out of hardware ray tracing (Lumen reflections, GI)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
     int menuKey = 0x78;              // virtual key (VK_F9): the settings menu
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
@@ -61,6 +69,8 @@ inline bool ParseBool(const std::string& v, bool fallback) {
 // INI text ([perf] section; keys outside any section are read too). Unknown keys and bad values keep the default.
 inline Settings ParseSettings(const std::string& text) {
     Settings s;
+    const Settings defaults;
+    int version = 1;
     std::string section;
     size_t at = 0;
     while (at <= text.size()) {
@@ -76,7 +86,8 @@ inline Settings ParseSettings(const std::string& text) {
         const std::string k = Lower(Trim(line.substr(0, eq)));
         std::string v = Trim(line.substr(eq + 1));
         if (const size_t c = v.find_first_of(";#"); c != std::string::npos) v = Trim(v.substr(0, c));
-        if (k == "enabled") s.enabled = ParseBool(v, s.enabled);
+        if (k == "settings_version") version = std::atoi(v.c_str());
+        else if (k == "enabled") s.enabled = ParseBool(v, s.enabled);
         else if (k == "armor_leader_pose") s.armorLeaderPose = ParseBool(v, s.armorLeaderPose);
         else if (k == "armor_bounds") s.armorBounds = ParseBool(v, s.armorBounds);
         else if (k == "shadow_trim") s.shadowTrim = ParseBool(v, s.shadowTrim);
@@ -84,10 +95,19 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "vertex_paint") s.vertexPaint = ParseBool(v, s.vertexPaint);
         else if (k == "idle_weapons") s.idleWeapons = ParseBool(v, s.idleWeapons);
         else if (k == "skip_empty_gamemode_tick") s.skipEmptyGameModeTick = ParseBool(v, s.skipEmptyGameModeTick);
+        else if (k == "corpse_sleep") s.corpseSleep = ParseBool(v, s.corpseSleep);
+        else if (k == "body_bounds") s.bodyBounds = ParseBool(v, s.bodyBounds);
+        else if (k == "head_leader_pose") s.headLeaderPose = ParseBool(v, s.headLeaderPose);
+        else if (k == "armor_ray_tracing") s.armorRayTracing = ParseBool(v, s.armorRayTracing);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
         else if (k == "menu_key") s.menuKey = ParseKey(v, s.menuKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
         else if (k == "force_unknown_build") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 2) s.forceUnknownBuild = n; }
+    }
+    if (version < 2) {
+        s.armorBounds = defaults.armorBounds;
+        s.shadowTrim = defaults.shadowTrim;
+        s.skipEmptyGameModeTick = defaults.skipEmptyGameModeTick;
     }
     // Bounds from the body only exist for a piece that follows the body's pose.
     if (!s.armorLeaderPose) s.armorBounds = false;
@@ -112,11 +132,13 @@ inline std::string SettingsIni(const Settings& s) {
     t += "; Half Sword Performance Mod settings. The F9 menu changes them in game and writes this file again (comments\n";
     t += "; you add are not kept). enabled, the keys and log_seconds take effect on the next start.\n";
     t += "[perf]\n";
+    t += "; Which defaults this file was written with (leave it as it is).\n";
+    t += "settings_version=" + std::to_string(kSettingsVersion) + "\n";
     t += "; 0 turns the whole mod off.\n";
     t += std::string("enabled=") + b(s.enabled) + "\n";
     t += "; Armour follows the body's bones directly instead of running an animation per piece.\n";
     t += std::string("armor_leader_pose=") + b(s.armorLeaderPose) + "\n";
-    t += "; Armour drops the 10x bounds the game gives it, so armour (and its shadow) off screen can be skipped. Being checked.\n";
+    t += "; Armour drops the 10x bounds the game gives it, so armour (and its shadow) off screen can be skipped.\n";
     t += std::string("armor_bounds=") + b(s.armorBounds) + "\n";
     t += "; Armour on fighters farther than shadow_trim_meters casts no shadow.\n";
     t += std::string("shadow_trim=") + b(s.shadowTrim) + "\n";
@@ -127,6 +149,15 @@ inline std::string SettingsIni(const Settings& s) {
     t += std::string("idle_weapons=") + b(s.idleWeapons) + "\n";
     t += "; Skips the game mode's empty per-frame Blueprint (saves about a microsecond a frame).\n";
     t += std::string("skip_empty_gamemode_tick=") + b(s.skipEmptyGameModeTick) + "\n";
+    t += "; Dead fighters lying still stop ticking until something moves them.\n";
+    t += std::string("corpse_sleep=") + b(s.corpseSleep) + "\n";
+    t += "; The body drops the 1000x bounds the game gives it (its animation then runs even off screen).\n";
+    t += std::string("body_bounds=") + b(s.bodyBounds) + "\n";
+    t += "; The head and skeleton meshes follow the body's bones instead of copying them.\n";
+    t += std::string("head_leader_pose=") + b(s.headLeaderPose) + "\n";
+    t += "; 0 leaves armour out of ray traced reflections and lighting (saves GPU time; armour then shows in no reflection);\n";
+    t += "; 1 keeps it in, as the game ships.\n";
+    t += std::string("armor_ray_tracing=") + b(s.armorRayTracing) + "\n";
     t += "; Opens the settings menu.\n";
     t += "menu_key=" + KeyName(s.menuKey) + "\n";
     t += "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare;\n";

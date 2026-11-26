@@ -1,21 +1,30 @@
 # Half Sword Performance Mod
 
 Raises frame rates in Half Sword when many armoured fighters are on screen. Nothing about gameplay, physics or
-combat changes.
+combat changes. Every performance fix is on by default; the F9 menu turns each one off.
 
 ## What it does
 
 - **Armour follows the body directly.** In the stock game, each worn armour piece runs its own animation to copy
   the body's pose every frame. A fully armoured fighter can have twenty of them. The mod makes each piece use the
   body's bones directly, so that work disappears.
-- **Optional: tighter armour bounds.** The stock game makes each armour piece's bounds ten times too big. With
-  `armor_bounds=1` the mod drops that, so armour behind the camera can be skipped. Off by default while it is checked.
+- **Tighter armour bounds.** The stock game makes each armour piece's bounds ten times too big. The mod drops that,
+  so armour behind the camera can be skipped.
 - **Weapons lying still stop ticking.** Every weapon in the level runs code each frame for its swing and slide
   sounds, even one asleep on the floor. The mod pauses that on weapons at rest with nothing pending, and resumes it
   the moment one moves or is picked up.
-- **Optional: no shadows from distant armour.** Off by default.
-- **Optional: no blood or dent painting.** Off by default; this is the game's own switch.
-- **Frame time counters** on a key, and a performance line in `HSPerf.log`.
+- **Dead fighters lying still stop ticking.** A corpse runs the same per-frame code as a living fighter (about a
+  millisecond each). The mod pauses it once the body has settled, and resumes it the moment the body is moved.
+- **Tighter body bounds.** The stock game makes each fighter's body bounds a thousand times too big, so a body is
+  never skipped, even behind the camera. The mod drops that.
+- **Head and skeleton follow the body.** Like armour, they use the body's bones directly.
+- **Armour out of ray tracing.** Armour is left out of ray traced reflections and lighting. This saves GPU time;
+  armour then shows in no reflection. `armor_ray_tracing=1` puts it back.
+- **No shadows from distant armour.** Armour on fighters farther than 15 m casts no shadow.
+- **Skips the game mode's empty per-frame Blueprint.**
+- **Optional: no blood or dent painting.** Off by default (blood stays); this is the game's own switch.
+- **Frame time counters** on a key, and a performance line in `HSPerf.log` that also splits the CPU time between the
+  game, render and RHI threads, and says when the frame is waiting on the GPU (or a frame cap) instead.
 - **Blueprint profiler** (ported from HSMMod's): records which Blueprints and engine calls take the frame time.
 
 It works together with Half Sword Multiplayer (HSMMod), HS Enhancer, UE4SS and ReShade.
@@ -38,7 +47,7 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 |---|---|
 | F9 | Settings menu (during a fight) |
 | F10 | Frame time counters on or off |
-| Ctrl + F10 | Armour and weapon fixes off or on, to compare with the stock game |
+| Ctrl + F10 | Armour, weapon and corpse fixes off or on, to compare with the stock game |
 | Ctrl + Shift + F10 | Blueprint profiler: records up to 30 s (press again to stop early) |
 
 ## Settings menu
@@ -66,17 +75,22 @@ Open the `.json` in [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://trac
 
 The F9 menu changes these in game. If you edit the file by hand, restart the game. `enabled`, the keys and
 `log_seconds` only change on a restart. The menu writes the whole file again, so comments you add are not kept.
+A file from 0.2.0 or older is updated on the first start: the settings whose default changed take the new default.
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `enabled` | 1 | 0 turns the whole mod off |
 | `armor_leader_pose` | 1 | Armour follows the body's bones directly |
-| `armor_bounds` | 0 | Armour drops the game's 10x bounds, so off-screen armour can be skipped (being checked) |
-| `shadow_trim` | 0 | 1: armour on far fighters casts no shadow |
+| `armor_bounds` | 1 | Armour drops the game's 10x bounds, so off-screen armour can be skipped |
+| `shadow_trim` | 1 | Armour on far fighters casts no shadow |
 | `shadow_trim_meters` | 15 | How far "far" is |
 | `vertex_paint` | 1 | 0: no blood or dents painted on bodies and armour |
 | `idle_weapons` | 1 | Weapons lying still stop ticking until they move or are picked up |
-| `skip_empty_gamemode_tick` | 0 | 1: skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
+| `corpse_sleep` | 1 | Dead fighters lying still stop ticking until something moves them |
+| `armor_ray_tracing` | 0 | 0: armour is left out of ray traced reflections and lighting (saves GPU time); 1 as the game ships |
+| `body_bounds` | 1 | The body drops the game's 1000x bounds, so off-screen fighters can be skipped |
+| `head_leader_pose` | 1 | The head and skeleton meshes follow the body's bones directly |
+| `skip_empty_gamemode_tick` | 1 | Skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
 | `menu_key` | F9 | The settings menu key (`none` for no key) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |
 | `log_seconds` | 10 | A performance line in `HSPerf.log` every N seconds (0 = never) |

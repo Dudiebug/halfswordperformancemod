@@ -9,18 +9,31 @@ static int g_fail = 0;
 
 static void TestDefaults() {
     const Settings s = ParseSettings("");
-    CHECK(s.enabled && s.armorLeaderPose && !s.armorBounds && !s.shadowTrim && s.vertexPaint);
-    CHECK(s.idleWeapons && !s.skipEmptyGameModeTick);
+    CHECK(s.enabled && s.armorLeaderPose && s.armorBounds && s.shadowTrim && s.vertexPaint);
+    CHECK(s.idleWeapons && s.skipEmptyGameModeTick);
+    CHECK(s.corpseSleep && s.bodyBounds && s.headLeaderPose && !s.armorRayTracing);
     CHECK(s.overlayKey == 0x79 && s.logSeconds == 10 && s.shadowTrimMeters == 15.0);
+}
+
+// A 0.2.0 file (no settings_version) says armor_bounds=0, shadow_trim=0 and skip_empty_gamemode_tick=0 because those
+// were the defaults then: the new defaults win. A file written since keeps what it says.
+static void TestSettingsVersion() {
+    const Settings old = ParseSettings("[perf]\narmor_bounds=0\nshadow_trim=0\nskip_empty_gamemode_tick=0\nidle_weapons=0\n");
+    CHECK(old.armorBounds && old.shadowTrim && old.skipEmptyGameModeTick && !old.idleWeapons);
+    const Settings now = ParseSettings("[perf]\nsettings_version=2\narmor_bounds=0\nshadow_trim=0\nskip_empty_gamemode_tick=0\n");
+    CHECK(!now.armorBounds && !now.shadowTrim && !now.skipEmptyGameModeTick);
+    CHECK(SettingsIni(Settings{}).find("settings_version=2\n") != std::string::npos);
 }
 
 static void TestParse() {
     const Settings s = ParseSettings(
-        "; comment\n[other]\nenabled=0\n[Perf]\r\nshadow_trim = on ; trailing\nshadow_trim_meters=25\n"
-        "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=1\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=1\n");
-    CHECK(!s.idleWeapons && s.skipEmptyGameModeTick);
+        "; comment\n[other]\nenabled=0\n[Perf]\r\nsettings_version=2\nshadow_trim = off ; trailing\nshadow_trim_meters=25\n"
+        "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=1\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=0\n"
+        "corpse_sleep=0\nbody_bounds=0\nhead_leader_pose=no\narmor_ray_tracing=on\n");
+    CHECK(!s.corpseSleep && !s.bodyBounds && !s.headLeaderPose && s.armorRayTracing);
+    CHECK(!s.idleWeapons && !s.skipEmptyGameModeTick);
     CHECK(s.enabled);               // [other] is not read
-    CHECK(s.shadowTrim && s.shadowTrimMeters == 25.0);
+    CHECK(!s.shadowTrim && s.shadowTrimMeters == 25.0);
     CHECK(!s.vertexPaint && s.overlayKey == 0x78 && s.logSeconds == 30 && s.armorBounds && s.forceUnknownBuild == 2);
 }
 
@@ -41,14 +54,16 @@ static bool Same(const Settings& a, const Settings& b) {
     return a.enabled == b.enabled && a.armorLeaderPose == b.armorLeaderPose && a.armorBounds == b.armorBounds && a.shadowTrim == b.shadowTrim &&
            a.shadowTrimMeters == b.shadowTrimMeters && a.vertexPaint == b.vertexPaint && a.idleWeapons == b.idleWeapons &&
            a.skipEmptyGameModeTick == b.skipEmptyGameModeTick && a.overlayKey == b.overlayKey && a.menuKey == b.menuKey &&
-           a.logSeconds == b.logSeconds && a.forceUnknownBuild == b.forceUnknownBuild;
+           a.logSeconds == b.logSeconds && a.forceUnknownBuild == b.forceUnknownBuild && a.corpseSleep == b.corpseSleep &&
+           a.bodyBounds == b.bodyBounds && a.headLeaderPose == b.headLeaderPose && a.armorRayTracing == b.armorRayTracing;
 }
 
 static void TestIniRoundTrip() {
     CHECK(Same(ParseSettings(SettingsIni(Settings{})), Settings{}));
     Settings s;
-    s.enabled = false; s.armorBounds = true; s.shadowTrim = true; s.shadowTrimMeters = 22.5; s.vertexPaint = false;
-    s.idleWeapons = false; s.skipEmptyGameModeTick = true; s.overlayKey = 0x7A; s.menuKey = 0; s.logSeconds = 0; s.forceUnknownBuild = 1;
+    s.enabled = false; s.armorBounds = false; s.shadowTrim = false; s.shadowTrimMeters = 22.5; s.vertexPaint = false;
+    s.idleWeapons = false; s.skipEmptyGameModeTick = false; s.overlayKey = 0x7A; s.menuKey = 0; s.logSeconds = 0; s.forceUnknownBuild = 1;
+    s.corpseSleep = false; s.bodyBounds = false; s.headLeaderPose = false; s.armorRayTracing = true;
     CHECK(Same(ParseSettings(SettingsIni(s)), s));
     s.menuKey = 0xC0;   // not an F key
     CHECK(ParseSettings(SettingsIni(s)).menuKey == 0xC0);
@@ -85,6 +100,7 @@ static void TestShadowHysteresis() {
 
 int main() {
     TestDefaults();
+    TestSettingsVersion();
     TestParse();
     TestBadValues();
     TestBoundsNeedLeaderPose();

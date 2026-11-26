@@ -36,9 +36,13 @@ core::Settings LoadSettings() {
         WriteAll(path, text);
     }
     const core::Settings s = core::ParseSettings(text);
-    HSP_LOG("config: enabled %d, armor_leader_pose %d, armor_bounds %d, shadow_trim %d (%.0f m), vertex_paint %d, idle_weapons %d, skip_empty_gamemode_tick %d, menu_key %s, overlay_key %s, log_seconds %d",
+    // A file from an older version: written again with the new keys and defaults, so what it says is what runs.
+    if (text.find("settings_version=") == std::string::npos && WriteAll(path, core::SettingsIni(s)))
+        HSP_LOG("config: HSPerf.ini updated to settings version %d (new defaults for the settings that changed)", core::kSettingsVersion);
+    HSP_LOG("config: enabled %d, armor_leader_pose %d, armor_bounds %d, shadow_trim %d (%.0f m), vertex_paint %d, idle_weapons %d, skip_empty_gamemode_tick %d, corpse_sleep %d, body_bounds %d, head_leader_pose %d, armor_ray_tracing %d, menu_key %s, overlay_key %s, log_seconds %d",
             s.enabled, s.armorLeaderPose, s.armorBounds, s.shadowTrim, s.shadowTrimMeters, s.vertexPaint, s.idleWeapons, s.skipEmptyGameModeTick,
-            core::KeyName(s.menuKey).c_str(), core::KeyName(s.overlayKey).c_str(), s.logSeconds);
+            s.corpseSleep, s.bodyBounds, s.headLeaderPose, s.armorRayTracing, core::KeyName(s.menuKey).c_str(), core::KeyName(s.overlayKey).c_str(),
+            s.logSeconds);
     return s;
 }
 

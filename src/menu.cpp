@@ -165,18 +165,22 @@ private:
 
 const char* const kLabels[] = {
     "Armour follows the body (leader pose)",
-    "Tighter armour bounds (being checked)",
+    "Tighter armour bounds",
     "No armour shadows on far fighters",
     "Far means farther than",
+    "Armour in ray traced reflections and light",
     "Blood and dents (vertex paint)",
     "Weapons on the floor stop ticking",
+    "Still corpses stop ticking",
+    "Tighter body bounds",
+    "Head and skeleton follow the body",
     "Skip the game mode's empty tick",
     "Frame time counters (F10)",
     "Mod fixes (compare with Ctrl + F10)",
     "Record a 30 s profile (Ctrl + Shift + F10)",
     "Close (F9 or Esc)",
 };
-static_assert(sizeof kLabels / sizeof kLabels[0] == 11, "one label per row");
+static_assert(sizeof kLabels / sizeof kLabels[0] == 15, "one label per row");
 }  // namespace
 
 UObject* Menu::PlayerController(UObject* gameMode) {
@@ -339,6 +343,10 @@ MenuAction Menu::Change(int row, int dir, core::Settings& s) {
     case kShadowMeters: s.shadowTrimMeters = core::NextTrimMeters(s.shadowTrimMeters, dir); break;
     case kPaint: s.vertexPaint = !s.vertexPaint; break;
     case kWeapons: s.idleWeapons = !s.idleWeapons; break;
+    case kArmorRt: s.armorRayTracing = !s.armorRayTracing; break;
+    case kCorpses: s.corpseSleep = !s.corpseSleep; break;
+    case kBodyBounds: s.bodyBounds = !s.bodyBounds; break;
+    case kHead: s.headLeaderPose = !s.headLeaderPose; break;
     case kSkipTick: s.skipEmptyGameModeTick = !s.skipEmptyGameModeTick; break;
     case kOverlay: return MenuAction::ToggleOverlay;
     case kFixes: return MenuAction::ToggleFixes;
@@ -359,6 +367,10 @@ void Menu::Refresh(const core::Settings& s, const MenuInfo& info, bool statsDue)
     v[kShadowMeters] = std::to_string(int(s.shadowTrimMeters)) + " m";
     v[kPaint] = onOff(s.vertexPaint);
     v[kWeapons] = onOff(s.idleWeapons);
+    v[kArmorRt] = s.armorRayTracing ? "on (as the game ships)" : "off";
+    v[kCorpses] = onOff(s.corpseSleep);
+    v[kBodyBounds] = onOff(s.bodyBounds);
+    v[kHead] = onOff(s.headLeaderPose);
     v[kSkipTick] = onOff(s.skipEmptyGameModeTick);
     v[kOverlay] = onOff(info.overlay);
     v[kFixes] = info.fixesActive ? "on" : "off (as the game ships)";
@@ -367,7 +379,7 @@ void Menu::Refresh(const core::Settings& s, const MenuInfo& info, bool statsDue)
         if (v[r] == shown_[r]) continue;
         shown_[r] = v[r];
         Builder::Set(w_.value[r], v[r]);
-        const bool good = v[r] == "on" || r == kShadowMeters || (r == kProfile && info.recording);
+        const bool good = r == kArmorRt ? !s.armorRayTracing : v[r] == "on" || r == kShadowMeters || (r == kProfile && info.recording);
         Builder::Ink(w_.value[r], (r == kProfile && !info.recording) ? kDim : good ? kOn : kOff);
     }
     if (selected_ != shownSelected_) {

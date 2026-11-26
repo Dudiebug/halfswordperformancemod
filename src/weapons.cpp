@@ -33,7 +33,7 @@ bool WeaponFixes::Prepare() {
     allActors_ = PreparedCall(reinterpret_cast<UClass*>(gs), "GetAllActorsOfClass", {"WorldContextObject", "ActorClass", "OutActors"});
     baseTick_ = FindFunction(weapon_, "ReceiveTick");
     if (baseTick_ && OuterOf(reinterpret_cast<UObject*>(baseTick_)) != reinterpret_cast<UObject*>(weapon_)) baseTick_ = nullptr;
-    const char* props[] = {"Parent Actor", "Last Parent", "Weapons With Disabled Collision", "Due Weapon Skill", "Just Parried Rate",
+    const char* props[] = {"Parent Actors", "Last Parent", "Weapons With Disabled Collision", "Due Weapon Skill", "Just Parried Rate",
                            "Just Parried", "Sliding", "BaseMesh", "Sound Slide", "Weapon Velocity_Old"};
     bool propsOk = true;
     for (const char* p : props)
@@ -50,9 +50,15 @@ bool WeaponFixes::Prepare() {
     return !unusable_;
 }
 
+// Held by any fighter (the tick only rests when Parent Actors is empty). Unreadable counts as held.
+static bool Held(UObject* w) {
+    const auto* parents = static_cast<TArrayRaw*>(FieldPtr(w, "Parent Actors"));
+    return !parents || parents->num != 0;
+}
+
 // Every value the weapon's tick reads or advances is at rest, so a tick would change nothing.
 bool WeaponFixes::Idle(UObject* w) {
-    if (Alive(Obj(w, "Parent Actor")) || Obj(w, "Last Parent")) return false;
+    if (Held(w) || Obj(w, "Last Parent")) return false;
     const auto* disabled = static_cast<TArrayRaw*>(FieldPtr(w, "Weapons With Disabled Collision"));
     if (!disabled || disabled->num != 0) return false;
     const double* skill = Field<double>(w, "Due Weapon Skill");
@@ -88,7 +94,7 @@ void WeaponFixes::Frame() {
         UObject* w = Resolve(o);
         if (!w) return true;   // destroyed: nothing to undo
         UObject* mesh = Obj(w, "BaseMesh");
-        if (!Alive(Obj(w, "Parent Actor")) && Alive(mesh) && !CallBool(mesh, "IsAnyRigidBodyAwake")) return false;
+        if (!Held(w) && Alive(mesh) && !CallBool(mesh, "IsAnyRigidBodyAwake")) return false;
         Wake(w);
         return true;
     }), off_.end());

@@ -6,10 +6,12 @@
 // ProcessEvent and the script VM with inline hooks; a pointer swap stays out of their way in any load order.
 #include "armor.h"
 #include "config.h"
+#include "corpses.h"
 #include "core/perf_core.h"
 #include "log.h"
 #include "menu.h"
 #include "profiler.h"
+#include "threads.h"
 #include "weapons.h"
 #include "ue/engine.h"
 #include <windows.h>
@@ -30,6 +32,8 @@ std::atomic<uint64_t> g_lastTickMs{0};
 core::Settings g_settings;
 std::unique_ptr<ArmorFixes> g_armor;
 std::unique_ptr<WeaponFixes> g_weapons;
+std::unique_ptr<CorpseFixes> g_corpses;
+ThreadTimes g_threads;
 // The original Func is ProcessInternal running the game mode's ReceiveTick body, which is empty in this build
 // (it only stores DeltaSeconds): with skip_empty_gamemode_tick it is not run. Never set when another mod's Func is there.
 std::atomic<bool> g_skipOrig{false};
@@ -77,7 +81,8 @@ std::string ToggleProfile(UObject* gameMode) {
 void ToggleFixes() {
     g_armor->SetActive(!g_armor->Active());
     g_weapons->SetActive(g_armor->Active());
-    HSP_LOG("key: armour and weapon fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
+    g_corpses->SetActive(g_armor->Active());
+    HSP_LOG("key: armour, weapon and corpse fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
     g_tick.frames.Reset();   // the next perf line covers one setting only
     g_tick.lastLog = g_tick.lastFrame;
 }
@@ -107,9 +112,12 @@ void MenuTick(UObject* gameMode) {
         info.recording = prof::Recording();
         const ArmorCounts c = g_armor->Counts();
         const WeaponCounts wc = g_weapons->Counts();
-        char line[200];
-        std::snprintf(line, sizeof line, "%.1f ms a frame (%.0f fps)   fighters %d   armour pieces %d (%d follow the body)   weapons %d (%d asleep)",
-                      g_tick.avgMs, g_tick.avgMs > 0 ? 1000.0 / g_tick.avgMs : 0.0, c.fighters, c.pieces, c.leader, wc.weapons, wc.tickOff);
+        const CorpseCounts cc = g_corpses->Counts();
+        char line[320];
+        std::snprintf(line, sizeof line,
+                      "%.1f ms a frame (%.0f fps)   fighters %d (%d dead, %d asleep)   armour pieces %d (%d follow the body)   weapons %d (%d asleep)",
+                      g_tick.avgMs, g_tick.avgMs > 0 ? 1000.0 / g_tick.avgMs : 0.0, c.fighters, cc.dead, cc.tickOff, c.pieces, c.leader,
+                      wc.weapons, wc.tickOff);
         info.stats = line;
     }
     switch (g_menu.Tick(gameMode, g_settings, info)) {
@@ -128,6 +136,7 @@ void MenuTick(UObject* gameMode) {
 
 void OnGameTick(UObject* gameMode) {
     const double now = NowMs();
+    if (g_tick.lastFrame == 0) g_threads.SetGameThread(GetCurrentThreadId());
     const double gap = g_tick.lastFrame > 0 ? now - g_tick.lastFrame : 0;
     if (g_tick.lastFrame > 0) g_tick.frames.Add(gap);
     if (gap > 0 && gap < 1000) g_tick.avgMs = g_tick.avgMs > 0 ? g_tick.avgMs * 0.95 + gap * 0.05 : gap;
@@ -136,22 +145,28 @@ void OnGameTick(UObject* gameMode) {
     Keys(gameMode);
     MenuTick(gameMode);
     {
-        prof::Scope s("weapon wake check");
+        prof::Scope s("weapon and corpse wake check");
         g_weapons->Frame();
+        g_corpses->Frame();
     }
     if (now - g_tick.lastPass >= kPassMs) {
         g_tick.lastPass = now;
         prof::Scope s("armour and weapon pass");
         g_armor->Pass(gameMode);
         g_weapons->Pass(gameMode);
+        g_corpses->Pass(gameMode);
     }
     if (g_settings.logSeconds > 0 && now - g_tick.lastLog >= g_settings.logSeconds * 1000.0) {
         if (g_tick.frames.Count() > 0) {
             const ArmorCounts c = g_armor->Counts();
             const WeaponCounts wc = g_weapons->Counts();
-            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d, armour pieces %d (leader pose %d, shadow off %d), weapons %d (tick off %d), fixes %s",
-                    g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, c.pieces,
-                    c.leader, c.shadowOff, wc.weapons, wc.tickOff, g_armor->Active() ? "on" : "OFF");
+            const CorpseCounts cc = g_corpses->Counts();
+            const std::string cpu = g_threads.Line(g_tick.frames.Average());
+            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d (dead %d, tick off %d; bounds %d, head/skeleton follow %d), "
+                    "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), fixes %s%s",
+                    g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, cc.dead, cc.tickOff,
+                    c.bodyBounds, c.headLeader, c.pieces, c.leader, c.shadowOff, c.rtOff, wc.weapons, wc.tickOff,
+                    g_armor->Active() ? "on" : "OFF", cpu.c_str());
         }
         g_tick.frames.Reset();
         g_tick.lastLog = now;
@@ -212,6 +227,7 @@ DWORD WINAPI ModMain(void*) {
     if (!SelfTest()) { HSP_LOG("engine: self test failed; the mod stays off"); return 0; }
     g_armor = std::make_unique<ArmorFixes>(g_settings);
     g_weapons = std::make_unique<WeaponFixes>(g_settings);
+    g_corpses = std::make_unique<CorpseFixes>(g_settings);
     for (;;) {
         if (GetTickCount64() - g_lastTickMs.load(std::memory_order_relaxed) > 2000) TryInstall();
         Sleep(1000);
