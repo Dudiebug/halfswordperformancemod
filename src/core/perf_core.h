@@ -2,7 +2,9 @@
 #pragma once
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -19,6 +21,7 @@ struct Settings {
     bool idleWeapons = true;         // weapons asleep on the floor with nothing pending stop ticking until they wake
     bool skipEmptyGameModeTick = false;   // skip the game mode's empty Blueprint tick body (saves about a microsecond)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
+    int menuKey = 0x78;              // virtual key (VK_F9): the settings menu
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
     int forceUnknownBuild = 0;
 };
@@ -82,12 +85,67 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "idle_weapons") s.idleWeapons = ParseBool(v, s.idleWeapons);
         else if (k == "skip_empty_gamemode_tick") s.skipEmptyGameModeTick = ParseBool(v, s.skipEmptyGameModeTick);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
+        else if (k == "menu_key") s.menuKey = ParseKey(v, s.menuKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
         else if (k == "force_unknown_build") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 2) s.forceUnknownBuild = n; }
     }
     // Bounds from the body only exist for a piece that follows the body's pose.
     if (!s.armorLeaderPose) s.armorBounds = false;
     return s;
+}
+
+// A virtual key as ParseKey reads it back: "F1".."F24", "none", or "0x7A".
+inline std::string KeyName(int vk) {
+    char buf[8];
+    if (vk == 0) return "none";
+    if (vk >= 0x70 && vk <= 0x87) std::snprintf(buf, sizeof buf, "F%d", vk - 0x70 + 1);
+    else std::snprintf(buf, sizeof buf, "0x%02X", vk & 0xFF);
+    return buf;
+}
+
+// HSPerf.ini with these values (the file the mod writes the first time, and again when the menu changes a setting).
+inline std::string SettingsIni(const Settings& s) {
+    auto b = [](bool v) { return v ? "1" : "0"; };
+    char meters[16];
+    std::snprintf(meters, sizeof meters, "%g", s.shadowTrimMeters);
+    std::string t;
+    t += "; Half Sword Performance Mod settings. The F9 menu changes them in game and writes this file again (comments\n";
+    t += "; you add are not kept). enabled, the keys and log_seconds take effect on the next start.\n";
+    t += "[perf]\n";
+    t += "; 0 turns the whole mod off.\n";
+    t += std::string("enabled=") + b(s.enabled) + "\n";
+    t += "; Armour follows the body's bones directly instead of running an animation per piece.\n";
+    t += std::string("armor_leader_pose=") + b(s.armorLeaderPose) + "\n";
+    t += "; Armour drops the 10x bounds the game gives it, so armour (and its shadow) off screen can be skipped. Being checked.\n";
+    t += std::string("armor_bounds=") + b(s.armorBounds) + "\n";
+    t += "; Armour on fighters farther than shadow_trim_meters casts no shadow.\n";
+    t += std::string("shadow_trim=") + b(s.shadowTrim) + "\n";
+    t += std::string("shadow_trim_meters=") + meters + "\n";
+    t += "; 0 turns off blood and dents painted on bodies and armour (the game's own switch).\n";
+    t += std::string("vertex_paint=") + b(s.vertexPaint) + "\n";
+    t += "; Weapons lying still on the floor stop ticking until something moves or picks them up.\n";
+    t += std::string("idle_weapons=") + b(s.idleWeapons) + "\n";
+    t += "; Skips the game mode's empty per-frame Blueprint (saves about a microsecond a frame).\n";
+    t += std::string("skip_empty_gamemode_tick=") + b(s.skipEmptyGameModeTick) + "\n";
+    t += "; Opens the settings menu.\n";
+    t += "menu_key=" + KeyName(s.menuKey) + "\n";
+    t += "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare;\n";
+    t += "; Ctrl + Shift + this key records a 30 s profile.\n";
+    t += "overlay_key=" + KeyName(s.overlayKey) + "\n";
+    t += "; A performance line in HSPerf.log every N seconds (0 = never).\n";
+    t += "log_seconds=" + std::to_string(s.logSeconds) + "\n";
+    if (s.forceUnknownBuild) t += "force_unknown_build=" + std::to_string(s.forceUnknownBuild) + "\n";
+    return t;
+}
+
+// The menu's shadow distance steps, in metres: the next one up (dir > 0) or down, wrapping around.
+inline double NextTrimMeters(double now, int dir) {
+    constexpr double kSteps[] = {5, 10, 15, 20, 30, 50, 100};
+    constexpr int n = int(sizeof kSteps / sizeof kSteps[0]);
+    int at = 0;   // the step nearest to `now`
+    for (int i = 1; i < n; ++i) if (std::abs(kSteps[i] - now) < std::abs(kSteps[at] - now)) at = i;
+    if (kSteps[at] != now) return kSteps[at];   // a value set by hand: snap to a step first
+    return kSteps[((at + (dir > 0 ? 1 : -1)) % n + n) % n];
 }
 
 // Frame times between two game-mode ticks.

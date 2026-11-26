@@ -36,9 +36,17 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 
 | Key | Does |
 |---|---|
+| F9 | Settings menu (during a fight) |
 | F10 | Frame time counters on or off |
 | Ctrl + F10 | Armour and weapon fixes off or on, to compare with the stock game |
 | Ctrl + Shift + F10 | Blueprint profiler: records up to 30 s (press again to stop early) |
+
+## Settings menu
+
+F9 opens the menu over the game during a fight: every setting below, the counters, the compare switch and the
+profiler, with a live line of frame times and counts. Click a row, or use Up / Down and Enter / Left / Right. F9 or
+Esc closes it. Changes apply at once and are saved to `HSPerf.ini`. The game keeps running behind the menu, but your
+fighter gets no keys or mouse while it is open.
 
 ## Profiler
 
@@ -56,7 +64,8 @@ Open the `.json` in [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://trac
 
 ## Settings (`HSPerf.ini`)
 
-Restart the game after you change a setting.
+The F9 menu changes these in game. If you edit the file by hand, restart the game. `enabled`, the keys and
+`log_seconds` only change on a restart. The menu writes the whole file again, so comments you add are not kept.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -68,6 +77,7 @@ Restart the game after you change a setting.
 | `vertex_paint` | 1 | 0: no blood or dents painted on bodies and armour |
 | `idle_weapons` | 1 | Weapons lying still stop ticking until they move or are picked up |
 | `skip_empty_gamemode_tick` | 0 | 1: skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
+| `menu_key` | F9 | The settings menu key (`none` for no key) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |
 | `log_seconds` | 10 | A performance line in `HSPerf.log` every N seconds (0 = never) |
 

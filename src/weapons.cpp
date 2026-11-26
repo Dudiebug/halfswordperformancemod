@@ -94,16 +94,20 @@ void WeaponFixes::Frame() {
     }), off_.end());
 }
 
-void WeaponFixes::SetActive(bool on) {
-    active_ = on;
-    if (on) return;
+void WeaponFixes::WakeAll() {
     for (const Off& o : off_)
         if (UObject* w = Resolve(o)) Wake(w);
     off_.clear();
 }
 
+void WeaponFixes::SetActive(bool on) {
+    active_ = on;
+    if (!on) WakeAll();
+}
+
 void WeaponFixes::Pass(UObject* gameMode) {
-    if (!s_.idleWeapons || !active_ || !Prepare()) return;
+    if (!s_.idleWeapons || !active_) { if (!off_.empty()) WakeAll(); return; }   // turned off in the menu: every weapon ticks again
+    if (!Prepare()) return;
     allActors_.put<UObject*>(0, gameMode).put<UClass*>(1, weapon_);
     if (!allActors_.invoke(statics_)) return;
     const TArrayRaw found = allActors_.take<TArrayRaw>(2);

@@ -37,6 +37,31 @@ static void TestBoundsNeedLeaderPose() {
     CHECK(!s.armorLeaderPose && !s.armorBounds);
 }
 
+static bool Same(const Settings& a, const Settings& b) {
+    return a.enabled == b.enabled && a.armorLeaderPose == b.armorLeaderPose && a.armorBounds == b.armorBounds && a.shadowTrim == b.shadowTrim &&
+           a.shadowTrimMeters == b.shadowTrimMeters && a.vertexPaint == b.vertexPaint && a.idleWeapons == b.idleWeapons &&
+           a.skipEmptyGameModeTick == b.skipEmptyGameModeTick && a.overlayKey == b.overlayKey && a.menuKey == b.menuKey &&
+           a.logSeconds == b.logSeconds && a.forceUnknownBuild == b.forceUnknownBuild;
+}
+
+static void TestIniRoundTrip() {
+    CHECK(Same(ParseSettings(SettingsIni(Settings{})), Settings{}));
+    Settings s;
+    s.enabled = false; s.armorBounds = true; s.shadowTrim = true; s.shadowTrimMeters = 22.5; s.vertexPaint = false;
+    s.idleWeapons = false; s.skipEmptyGameModeTick = true; s.overlayKey = 0x7A; s.menuKey = 0; s.logSeconds = 0; s.forceUnknownBuild = 1;
+    CHECK(Same(ParseSettings(SettingsIni(s)), s));
+    s.menuKey = 0xC0;   // not an F key
+    CHECK(ParseSettings(SettingsIni(s)).menuKey == 0xC0);
+    CHECK(ParseSettings("").menuKey == 0x78 && ParseSettings("menu_key=F7").menuKey == 0x76);
+    CHECK(KeyName(0x78) == "F9" && KeyName(0x87) == "F24" && KeyName(0) == "none" && KeyName(0x41) == "0x41");
+}
+
+static void TestTrimSteps() {
+    CHECK(NextTrimMeters(15, 1) == 20 && NextTrimMeters(15, -1) == 10);
+    CHECK(NextTrimMeters(100, 1) == 5 && NextTrimMeters(5, -1) == 100);   // wraps
+    CHECK(NextTrimMeters(17, 1) == 15);                                   // a hand-set value snaps to a step first
+}
+
 static void TestFrameStats() {
     FrameStats f;
     CHECK(f.Average() == 0 && f.P99() == 0 && f.Max() == 0);
@@ -63,6 +88,8 @@ int main() {
     TestParse();
     TestBadValues();
     TestBoundsNeedLeaderPose();
+    TestIniRoundTrip();
+    TestTrimSteps();
     TestFrameStats();
     TestShadowHysteresis();
     std::printf(g_fail ? "%d FAILED\n" : "all passed\n", g_fail);

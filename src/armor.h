@@ -18,7 +18,7 @@ struct ArmorCounts { int fighters = 0, pieces = 0, leader = 0, shadowOff = 0; };
 
 class ArmorFixes {
 public:
-    explicit ArmorFixes(const core::Settings& s) : s_(s) {}
+    explicit ArmorFixes(const core::Settings& s) : s_(s) {}   // s is read on every pass: the menu changes it live
     // gameMode: the ticking BP_HalfSwordGameMode_C (world context). Cheap when there is nothing new.
     void Pass(ue::UObject* gameMode);
     void SetActive(bool on) { active_ = on; }   // false: every fix undone on the next pass (the A/B key)
@@ -32,7 +32,7 @@ private:
     void FixPiece(ue::UObject* piece, ue::UObject* body, Piece& rec, bool wantShadow);
     void LogBounds(ue::UObject* fighter, ue::UObject* body, ue::UObject* piece);   // for the in-game check of armor_bounds
 
-    const core::Settings s_;
+    const core::Settings& s_;
     bool active_ = true;
     bool prepared_ = false, unusable_ = false;
     ue::UClass* willie_ = nullptr;
@@ -47,6 +47,7 @@ private:
     int failures_ = 0;
     int passes_ = 0;
     bool loggedBody_ = false;
+    bool paintTouched_ = false;   // this mod turned vertex paint off on some fighter (so turning it on again undoes that)
     ue::UObject* kismet_ = nullptr;
 };
 

@@ -85,13 +85,6 @@ void ArmorFixes::FixPiece(UObject* piece, UObject* body, Piece& rec, bool wantSh
         // Only a piece the game attached to the body itself (a cut-off limb's or a dropped piece's is left alone).
         if (AttachParent(piece) == body && SetLeader(piece, body)) {
             rec.leader = true;
-            // The game gives each piece 10x bounds (its own box at the body's root would miss a fighter lying down).
-            // Under leader pose the piece's bounds come from the body's physics bodies, so they need no margin.
-            const float* scale = Field<float>(piece, "BoundsScale");
-            if (s_.armorBounds && scale && *scale > kArmorBoundsScale) {
-                const float was = *scale;
-                if (SetBoundsScale(piece, kArmorBoundsScale)) rec.scale = was;
-            }
         } else if (failures_ < 5) {
             ++failures_;
             HSP_LOG("armour: %s not on its fighter's body; left as the game set it up", ObjectName(piece).c_str());
@@ -100,6 +93,18 @@ void ArmorFixes::FixPiece(UObject* piece, UObject* body, Piece& rec, bool wantSh
         if (rec.scale > 0 && SetBoundsScale(piece, rec.scale)) rec.scale = 0;
         SetLeader(piece, nullptr);
         rec.leader = false;
+    }
+    // The game gives each piece 10x bounds (its own box at the body's root would miss a fighter lying down). Under
+    // leader pose the piece's bounds come from the body's physics bodies, so they need no margin.
+    const bool wantBounds = rec.leader && s_.armorBounds;
+    if (wantBounds && rec.scale == 0) {
+        const float* scale = Field<float>(piece, "BoundsScale");
+        if (scale && *scale > kArmorBoundsScale) {
+            const float was = *scale;
+            if (SetBoundsScale(piece, kArmorBoundsScale)) rec.scale = was;
+        }
+    } else if (!wantBounds && rec.scale > 0 && SetBoundsScale(piece, rec.scale)) {
+        rec.scale = 0;
     }
     const bool wantOff = active_ && s_.shadowTrim && !wantShadow;
     if (wantOff != rec.shadowOff && SetCastShadow(piece, !wantOff)) rec.shadowOff = wantOff;
@@ -155,7 +160,9 @@ void ArmorFixes::Pass(UObject* gameMode) {
     for (UObject* w : fighters) {
         if (!Alive(w)) continue;
         ++n.fighters;
-        if (!s_.vertexPaint) SetBool(w, "Force Disable Vertex Paint", true);   // the game's own switch, set again on every pass
+        // The game's own switch, set again on every pass; turned on again in the menu, set back to the game's default.
+        if (!s_.vertexPaint) paintTouched_ = SetBool(w, "Force Disable Vertex Paint", true) || paintTouched_;
+        else if (paintTouched_) SetBool(w, "Force Disable Vertex Paint", false);
         UObject* const* meshField = Field<UObject*>(w, "Mesh");
         UObject* body = meshField ? *meshField : nullptr;
         auto* worn = static_cast<TArrayRaw*>(FieldPtr(w, "Worn Armor"));

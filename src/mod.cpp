@@ -8,11 +8,13 @@
 #include "config.h"
 #include "core/perf_core.h"
 #include "log.h"
+#include "menu.h"
 #include "profiler.h"
 #include "weapons.h"
 #include "ue/engine.h"
 #include <windows.h>
 #include <atomic>
+#include <cstdio>
 #include <memory>
 
 namespace hsp {
@@ -31,6 +33,8 @@ std::unique_ptr<WeaponFixes> g_weapons;
 // The original Func is ProcessInternal running the game mode's ReceiveTick body, which is empty in this build
 // (it only stores DeltaSeconds): with skip_empty_gamemode_tick it is not run. Never set when another mod's Func is there.
 std::atomic<bool> g_skipOrig{false};
+std::atomic<bool> g_origIsVm{false};   // the Func found on ReceiveTick was the script VM (so its body may be skipped)
+Menu g_menu;
 
 double NowMs() {
     static LARGE_INTEGER freq = [] { LARGE_INTEGER f; QueryPerformanceFrequency(&f); return f; }();
@@ -58,39 +62,79 @@ struct TickState {
     double lastFrame = 0, lastPass = 0, lastLog = 0;
     core::FrameStats frames;
     bool keyDown = false, overlay = false;
+    double avgMs = 0;   // frame time, smoothed (the menu's stats line)
 };
 TickState g_tick;
 
 void TickThunk(UObject* context, void* stack, void* result);
 
+std::string ToggleProfile(UObject* gameMode) {
+    const std::string line = prof::Toggle(gameMode, reinterpret_cast<void*>(&TickThunk));
+    HSP_LOG("%s", line.c_str());
+    return line;
+}
+
+void ToggleFixes() {
+    g_armor->SetActive(!g_armor->Active());
+    g_weapons->SetActive(g_armor->Active());
+    HSP_LOG("key: armour and weapon fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
+    g_tick.frames.Reset();   // the next perf line covers one setting only
+    g_tick.lastLog = g_tick.lastFrame;
+}
+
+void ToggleOverlay(UObject* gameMode) {
+    g_tick.overlay = !g_tick.overlay;
+    Console(gameMode, "stat fps");
+    Console(gameMode, "stat unit");
+}
+
 void Keys(UObject* gameMode) {
     if (!g_settings.overlayKey) return;
     const bool down = GameHasFocus() && (GetAsyncKeyState(g_settings.overlayKey) & 0x8000);
     if (down && !g_tick.keyDown) {
-        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) {
-            HSP_LOG("%s", prof::Toggle(gameMode, reinterpret_cast<void*>(&TickThunk)).c_str());
-        } else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
-            g_armor->SetActive(!g_armor->Active());
-            g_weapons->SetActive(g_armor->Active());
-            HSP_LOG("key: armour and weapon fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
-            g_tick.frames.Reset();   // the next perf line covers one setting only
-            g_tick.lastLog = g_tick.lastFrame;
-        } else {
-            g_tick.overlay = !g_tick.overlay;
-            Console(gameMode, "stat fps");
-            Console(gameMode, "stat unit");
-        }
+        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) ToggleProfile(gameMode);
+        else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ToggleFixes();
+        else ToggleOverlay(gameMode);
     }
     g_tick.keyDown = down;
+}
+
+void MenuTick(UObject* gameMode) {
+    MenuInfo info;
+    if (g_menu.IsOpen()) {
+        info.overlay = g_tick.overlay;
+        info.fixesActive = g_armor->Active();
+        info.recording = prof::Recording();
+        const ArmorCounts c = g_armor->Counts();
+        const WeaponCounts wc = g_weapons->Counts();
+        char line[200];
+        std::snprintf(line, sizeof line, "%.1f ms a frame (%.0f fps)   fighters %d   armour pieces %d (%d follow the body)   weapons %d (%d asleep)",
+                      g_tick.avgMs, g_tick.avgMs > 0 ? 1000.0 / g_tick.avgMs : 0.0, c.fighters, c.pieces, c.leader, wc.weapons, wc.tickOff);
+        info.stats = line;
+    }
+    switch (g_menu.Tick(gameMode, g_settings, info)) {
+    case MenuAction::SettingsChanged:
+        g_skipOrig.store(g_origIsVm.load() && g_settings.skipEmptyGameModeTick, std::memory_order_relaxed);
+        break;
+    case MenuAction::ToggleOverlay: ToggleOverlay(gameMode); break;
+    case MenuAction::ToggleFixes:
+        ToggleFixes();
+        g_menu.Status(g_armor->Active() ? "Fixes on." : "Fixes off: the game runs as it ships.");
+        break;
+    case MenuAction::ToggleProfile: g_menu.Status(ToggleProfile(gameMode)); break;
+    case MenuAction::None: break;
+    }
 }
 
 void OnGameTick(UObject* gameMode) {
     const double now = NowMs();
     const double gap = g_tick.lastFrame > 0 ? now - g_tick.lastFrame : 0;
     if (g_tick.lastFrame > 0) g_tick.frames.Add(gap);
+    if (gap > 0 && gap < 1000) g_tick.avgMs = g_tick.avgMs > 0 ? g_tick.avgMs * 0.95 + gap * 0.05 : gap;
     g_tick.lastFrame = now;
     if (const std::string msg = prof::Frame(gameMode, gap); !msg.empty()) HSP_LOG("%s", msg.c_str());
     Keys(gameMode);
+    MenuTick(gameMode);
     {
         prof::Scope s("weapon wake check");
         g_weapons->Frame();
@@ -135,6 +179,7 @@ void TryInstall() {
     if (prev && reinterpret_cast<void*>(prev) != cur)
         HSP_LOG("tick: ReceiveTick's Func changed (%p, was %p): another mod swapped it; chaining to the new one", cur, reinterpret_cast<void*>(prev));
     const bool vm = IsScriptFunction(fn);
+    g_origIsVm.store(vm, std::memory_order_relaxed);
     g_skipOrig.store(vm && g_settings.skipEmptyGameModeTick, std::memory_order_relaxed);
     g_orig.store(reinterpret_cast<NativeFn>(cur), std::memory_order_release);
     SetFunctionNative(fn, reinterpret_cast<void*>(&TickThunk));
