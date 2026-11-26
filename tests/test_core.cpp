@@ -10,8 +10,9 @@ static int g_fail = 0;
 static void TestDefaults() {
     const Settings s = ParseSettings("");
     CHECK(s.enabled && s.armorLeaderPose && s.armorBounds && s.shadowTrim && s.vertexPaint);
-    CHECK(s.idleWeapons && s.skipEmptyGameModeTick);
+    CHECK(s.idleWeapons && s.skipEmptyGameModeTick && s.cheaperBlood);
     CHECK(s.corpseSleep && s.bodyBounds && s.headLeaderPose && !s.armorRayTracing);
+    CHECK(s.physicsIslands && s.islandMinPerWorker == 16 && s.markerSpheres);
     CHECK(s.overlayKey == 0x79 && s.logSeconds == 10 && s.shadowTrimMeters == 15.0);
 }
 
@@ -29,7 +30,10 @@ static void TestParse() {
     const Settings s = ParseSettings(
         "; comment\n[other]\nenabled=0\n[Perf]\r\nsettings_version=2\nshadow_trim = off ; trailing\nshadow_trim_meters=25\n"
         "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=1\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=0\n"
-        "corpse_sleep=0\nbody_bounds=0\nhead_leader_pose=no\narmor_ray_tracing=on\n");
+        "corpse_sleep=0\nbody_bounds=0\nhead_leader_pose=no\narmor_ray_tracing=on\ncheaper_blood=off\n"
+        "physics_islands=0\nisland_min_per_worker=8\nmarker_spheres=off\n");
+    CHECK(!s.physicsIslands && s.islandMinPerWorker == 8 && !s.markerSpheres);
+    CHECK(!s.cheaperBlood);
     CHECK(!s.corpseSleep && !s.bodyBounds && !s.headLeaderPose && s.armorRayTracing);
     CHECK(!s.idleWeapons && !s.skipEmptyGameModeTick);
     CHECK(s.enabled);               // [other] is not read
@@ -38,6 +42,7 @@ static void TestParse() {
 }
 
 static void TestBadValues() {
+    CHECK(ParseSettings("island_min_per_worker=0").islandMinPerWorker == 16);
     const Settings s = ParseSettings("shadow_trim_meters=0\nlog_seconds=-1\noverlay_key=banana\nenabled=maybe\nforce_unknown_build=9\n");
     CHECK(s.shadowTrimMeters == 15.0 && s.logSeconds == 10 && s.overlayKey == 0x79 && s.enabled && s.forceUnknownBuild == 0);
     CHECK(ParseSettings("overlay_key=none").overlayKey == 0);
@@ -55,7 +60,8 @@ static bool Same(const Settings& a, const Settings& b) {
            a.shadowTrimMeters == b.shadowTrimMeters && a.vertexPaint == b.vertexPaint && a.idleWeapons == b.idleWeapons &&
            a.skipEmptyGameModeTick == b.skipEmptyGameModeTick && a.overlayKey == b.overlayKey && a.menuKey == b.menuKey &&
            a.logSeconds == b.logSeconds && a.forceUnknownBuild == b.forceUnknownBuild && a.corpseSleep == b.corpseSleep &&
-           a.bodyBounds == b.bodyBounds && a.headLeaderPose == b.headLeaderPose && a.armorRayTracing == b.armorRayTracing;
+           a.bodyBounds == b.bodyBounds && a.headLeaderPose == b.headLeaderPose && a.armorRayTracing == b.armorRayTracing && a.cheaperBlood == b.cheaperBlood &&
+           a.physicsIslands == b.physicsIslands && a.islandMinPerWorker == b.islandMinPerWorker && a.markerSpheres == b.markerSpheres;
 }
 
 static void TestIniRoundTrip() {
@@ -63,7 +69,8 @@ static void TestIniRoundTrip() {
     Settings s;
     s.enabled = false; s.armorBounds = false; s.shadowTrim = false; s.shadowTrimMeters = 22.5; s.vertexPaint = false;
     s.idleWeapons = false; s.skipEmptyGameModeTick = false; s.overlayKey = 0x7A; s.menuKey = 0; s.logSeconds = 0; s.forceUnknownBuild = 1;
-    s.corpseSleep = false; s.bodyBounds = false; s.headLeaderPose = false; s.armorRayTracing = true;
+    s.corpseSleep = false; s.bodyBounds = false; s.headLeaderPose = false; s.armorRayTracing = true; s.cheaperBlood = false;
+    s.physicsIslands = false; s.islandMinPerWorker = 32; s.markerSpheres = false;
     CHECK(Same(ParseSettings(SettingsIni(s)), s));
     s.menuKey = 0xC0;   // not an F key
     CHECK(ParseSettings(SettingsIni(s)).menuKey == 0xC0);

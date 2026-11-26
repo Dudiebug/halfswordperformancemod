@@ -22,12 +22,16 @@ struct Settings {
     bool shadowTrim = true;          // armour on fighters farther than shadowTrimMeters casts no shadow
     double shadowTrimMeters = 15.0;
     bool vertexPaint = true;         // false: the game's own "Force Disable Vertex Paint" on every fighter (no blood/dents)
+    bool cheaperBlood = true;        // the passport's paint snapshot copied 4 times a second, footsteps' floor lookup early-out
     bool idleWeapons = true;         // weapons asleep on the floor with nothing pending stop ticking until they wake
     bool skipEmptyGameModeTick = true;    // skip the game mode's empty Blueprint tick body (saves about a microsecond)
     bool corpseSleep = true;         // dead fighters lying still stop ticking until something moves them
     bool bodyBounds = true;          // the body drops the game's 1000x bounds
     bool headLeaderPose = true;      // head and skeleton meshes follow the body's bones
     bool armorRayTracing = false;    // false: armour is left out of hardware ray tracing (Lumen reflections, GI)
+    bool physicsIslands = true;      // physics islands shared out among more worker threads (same result)
+    int islandMinPerWorker = 16;     // bodies / constraints per worker before another one joins (the game: 50)
+    bool markerSpheres = true;       // the ~230 damage marker spheres per fighter make no overlap events (nothing reads them)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
     int menuKey = 0x78;              // virtual key (VK_F9): the settings menu
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
@@ -93,12 +97,16 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "shadow_trim") s.shadowTrim = ParseBool(v, s.shadowTrim);
         else if (k == "shadow_trim_meters") { const double m = std::atof(v.c_str()); if (m >= 1 && m <= 500) s.shadowTrimMeters = m; }
         else if (k == "vertex_paint") s.vertexPaint = ParseBool(v, s.vertexPaint);
+        else if (k == "cheaper_blood") s.cheaperBlood = ParseBool(v, s.cheaperBlood);
         else if (k == "idle_weapons") s.idleWeapons = ParseBool(v, s.idleWeapons);
         else if (k == "skip_empty_gamemode_tick") s.skipEmptyGameModeTick = ParseBool(v, s.skipEmptyGameModeTick);
         else if (k == "corpse_sleep") s.corpseSleep = ParseBool(v, s.corpseSleep);
         else if (k == "body_bounds") s.bodyBounds = ParseBool(v, s.bodyBounds);
         else if (k == "head_leader_pose") s.headLeaderPose = ParseBool(v, s.headLeaderPose);
         else if (k == "armor_ray_tracing") s.armorRayTracing = ParseBool(v, s.armorRayTracing);
+        else if (k == "physics_islands") s.physicsIslands = ParseBool(v, s.physicsIslands);
+        else if (k == "island_min_per_worker") { const int n = std::atoi(v.c_str()); if (n >= 1 && n <= 1000) s.islandMinPerWorker = n; }
+        else if (k == "marker_spheres") s.markerSpheres = ParseBool(v, s.markerSpheres);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
         else if (k == "menu_key") s.menuKey = ParseKey(v, s.menuKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
@@ -145,6 +153,9 @@ inline std::string SettingsIni(const Settings& s) {
     t += std::string("shadow_trim_meters=") + meters + "\n";
     t += "; 0 turns off blood and dents painted on bodies and armour (the game's own switch).\n";
     t += std::string("vertex_paint=") + b(s.vertexPaint) + "\n";
+    t += "; Blood costs less with no change to it: the snapshot kept for saves is copied 4 times a second instead of\n";
+    t += "; every frame, and footsteps take the first floor vertex within 5 cm instead of searching the whole floor.\n";
+    t += std::string("cheaper_blood=") + b(s.cheaperBlood) + "\n";
     t += "; Weapons lying still on the floor stop ticking until something moves or picks them up.\n";
     t += std::string("idle_weapons=") + b(s.idleWeapons) + "\n";
     t += "; Skips the game mode's empty per-frame Blueprint (saves about a microsecond a frame).\n";
@@ -158,6 +169,12 @@ inline std::string SettingsIni(const Settings& s) {
     t += "; 0 leaves armour out of ray traced reflections and lighting (saves GPU time; armour then shows in no reflection);\n";
     t += "; 1 keeps it in, as the game ships.\n";
     t += std::string("armor_ray_tracing=") + b(s.armorRayTracing) + "\n";
+    t += "; Physics shares the fighters' separate groups of bodies out among more CPU threads (the result is the same).\n";
+    t += std::string("physics_islands=") + b(s.physicsIslands) + "\n";
+    t += "; How many bodies or joints one thread takes before another one joins in (the game uses 50).\n";
+    t += "island_min_per_worker=" + std::to_string(s.islandMinPerWorker) + "\n";
+    t += "; The ~230 small damage marker spheres on each fighter stop making overlap events nothing listens to.\n";
+    t += std::string("marker_spheres=") + b(s.markerSpheres) + "\n";
     t += "; Opens the settings menu.\n";
     t += "menu_key=" + KeyName(s.menuKey) + "\n";
     t += "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare;\n";

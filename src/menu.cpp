@@ -170,17 +170,20 @@ const char* const kLabels[] = {
     "Far means farther than",
     "Armour in ray traced reflections and light",
     "Blood and dents (vertex paint)",
+    "Cheaper blood (looks the same)",
     "Weapons on the floor stop ticking",
     "Still corpses stop ticking",
     "Tighter body bounds",
     "Head and skeleton follow the body",
     "Skip the game mode's empty tick",
+    "Physics on more threads (same result)",
+    "Marker spheres skip overlap checks",
     "Frame time counters (F10)",
     "Mod fixes (compare with Ctrl + F10)",
     "Record a 30 s profile (Ctrl + Shift + F10)",
     "Close (F9 or Esc)",
 };
-static_assert(sizeof kLabels / sizeof kLabels[0] == 15, "one label per row");
+static_assert(sizeof kLabels / sizeof kLabels[0] == 18, "one label per row");
 }  // namespace
 
 UObject* Menu::PlayerController(UObject* gameMode) {
@@ -342,12 +345,15 @@ MenuAction Menu::Change(int row, int dir, core::Settings& s) {
     case kShadow: s.shadowTrim = !s.shadowTrim; break;
     case kShadowMeters: s.shadowTrimMeters = core::NextTrimMeters(s.shadowTrimMeters, dir); break;
     case kPaint: s.vertexPaint = !s.vertexPaint; break;
+    case kBlood: s.cheaperBlood = !s.cheaperBlood; break;
     case kWeapons: s.idleWeapons = !s.idleWeapons; break;
     case kArmorRt: s.armorRayTracing = !s.armorRayTracing; break;
     case kCorpses: s.corpseSleep = !s.corpseSleep; break;
     case kBodyBounds: s.bodyBounds = !s.bodyBounds; break;
     case kHead: s.headLeaderPose = !s.headLeaderPose; break;
     case kSkipTick: s.skipEmptyGameModeTick = !s.skipEmptyGameModeTick; break;
+    case kIslands: s.physicsIslands = !s.physicsIslands; break;
+    case kMarkers: s.markerSpheres = !s.markerSpheres; break;
     case kOverlay: return MenuAction::ToggleOverlay;
     case kFixes: return MenuAction::ToggleFixes;
     case kProfile: return MenuAction::ToggleProfile;
@@ -366,12 +372,15 @@ void Menu::Refresh(const core::Settings& s, const MenuInfo& info, bool statsDue)
     v[kShadow] = onOff(s.shadowTrim);
     v[kShadowMeters] = std::to_string(int(s.shadowTrimMeters)) + " m";
     v[kPaint] = onOff(s.vertexPaint);
+    v[kBlood] = onOff(s.cheaperBlood);
     v[kWeapons] = onOff(s.idleWeapons);
     v[kArmorRt] = s.armorRayTracing ? "on (as the game ships)" : "off";
     v[kCorpses] = onOff(s.corpseSleep);
     v[kBodyBounds] = onOff(s.bodyBounds);
     v[kHead] = onOff(s.headLeaderPose);
     v[kSkipTick] = onOff(s.skipEmptyGameModeTick);
+    v[kIslands] = onOff(s.physicsIslands);
+    v[kMarkers] = onOff(s.markerSpheres);
     v[kOverlay] = onOff(info.overlay);
     v[kFixes] = info.fixesActive ? "on" : "off (as the game ships)";
     v[kProfile] = info.recording ? "recording, click to stop" : "start";

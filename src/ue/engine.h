@@ -91,6 +91,9 @@ uint32_t FunctionFlags(const UFunction* f);
 std::vector<FProperty*> Params(const UFunction* f);
 void* FunctionNative(const UFunction* f);           // UFunction::Func: the native thunk, or ProcessInternal for script functions
 void SetFunctionNative(UFunction* f, void* native);   // swaps UFunction::Func (the caller keeps the old pointer to chain to)
+// A Blueprint function's bytecode as the VM runs it (object and property pointers 8 bytes, FNames 12), and its size.
+// nullptr when it has none or the layout check fails (the last byte must be EX_EndOfScript).
+uint8_t* ScriptBytes(const UFunction* f, int32_t* size);
 // A Blueprint event stub's ubergraph and its entry offset. When set (and the engine's event-graph fast call is compiled
 // in), ProcessEvent invokes the ubergraph's Func directly and never this function's Func.
 UFunction* EventGraphFunction(const UFunction* f);

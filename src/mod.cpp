@@ -1,15 +1,17 @@
 // Startup and the game-thread tick.
 //
-// No code in the game is patched. The mod swaps one pointer: UFunction::Func of BP_HalfSwordGameMode_C's ReceiveTick,
+// No machine code in the game is patched (blood.cpp changes two constants in Willie_BP's loaded bytecode). The mod swaps one pointer: UFunction::Func of BP_HalfSwordGameMode_C's ReceiveTick,
 // which ProcessEvent calls through Invoke every frame. The swapped-in thunk calls the original (UObject::ProcessInternal,
 // or whatever another mod put there first) and then runs this mod's work. HSMMod, HS Enhancer and UE4SS detour
 // ProcessEvent and the script VM with inline hooks; a pointer swap stays out of their way in any load order.
 #include "armor.h"
+#include "blood.h"
 #include "config.h"
 #include "corpses.h"
 #include "core/perf_core.h"
 #include "log.h"
 #include "menu.h"
+#include "physics.h"
 #include "profiler.h"
 #include "threads.h"
 #include "weapons.h"
@@ -33,6 +35,8 @@ core::Settings g_settings;
 std::unique_ptr<ArmorFixes> g_armor;
 std::unique_ptr<WeaponFixes> g_weapons;
 std::unique_ptr<CorpseFixes> g_corpses;
+std::unique_ptr<BloodFixes> g_blood;
+std::unique_ptr<PhysicsFixes> g_physics;
 ThreadTimes g_threads;
 // The original Func is ProcessInternal running the game mode's ReceiveTick body, which is empty in this build
 // (it only stores DeltaSeconds): with skip_empty_gamemode_tick it is not run. Never set when another mod's Func is there.
@@ -82,7 +86,9 @@ void ToggleFixes() {
     g_armor->SetActive(!g_armor->Active());
     g_weapons->SetActive(g_armor->Active());
     g_corpses->SetActive(g_armor->Active());
-    HSP_LOG("key: armour, weapon and corpse fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
+    g_blood->SetActive(g_armor->Active());
+    g_physics->SetActive(g_armor->Active());
+    HSP_LOG("key: armour, weapon, corpse, blood and physics fixes %s", g_armor->Active() ? "ON" : "OFF (as the game ships)");
     g_tick.frames.Reset();   // the next perf line covers one setting only
     g_tick.lastLog = g_tick.lastFrame;
 }
@@ -155,6 +161,8 @@ void OnGameTick(UObject* gameMode) {
         g_armor->Pass(gameMode);
         g_weapons->Pass(gameMode);
         g_corpses->Pass(gameMode);
+        g_blood->Pass();
+        g_physics->Pass(gameMode, &Console);
     }
     if (g_settings.logSeconds > 0 && now - g_tick.lastLog >= g_settings.logSeconds * 1000.0) {
         if (g_tick.frames.Count() > 0) {
@@ -163,9 +171,11 @@ void OnGameTick(UObject* gameMode) {
             const CorpseCounts cc = g_corpses->Counts();
             const std::string cpu = g_threads.Line(g_tick.frames.Average());
             HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d (dead %d, tick off %d; bounds %d, head/skeleton follow %d), "
-                    "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), fixes %s%s",
+                    "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), cheaper blood (snapshot %d, footsteps %d), physics (islands %d per worker, marker spheres %d of %d quiet), fixes %s%s",
                     g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, cc.dead, cc.tickOff,
                     c.bodyBounds, c.headLeader, c.pieces, c.leader, c.shadowOff, c.rtOff, wc.weapons, wc.tickOff,
+                    int(g_blood->Counts().snapshot), int(g_blood->Counts().footsteps),
+                    g_physics->Counts().islandMin, g_physics->Counts().markersOff, g_physics->Counts().markers,
                     g_armor->Active() ? "on" : "OFF", cpu.c_str());
         }
         g_tick.frames.Reset();
@@ -228,6 +238,8 @@ DWORD WINAPI ModMain(void*) {
     g_armor = std::make_unique<ArmorFixes>(g_settings);
     g_weapons = std::make_unique<WeaponFixes>(g_settings);
     g_corpses = std::make_unique<CorpseFixes>(g_settings);
+    g_blood = std::make_unique<BloodFixes>(g_settings);
+    g_physics = std::make_unique<PhysicsFixes>(g_settings);
     for (;;) {
         if (GetTickCount64() - g_lastTickMs.load(std::memory_order_relaxed) > 2000) TryInstall();
         Sleep(1000);

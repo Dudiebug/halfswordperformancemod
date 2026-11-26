@@ -22,6 +22,14 @@ combat changes. Every performance fix is on by default; the F9 menu turns each o
   armour then shows in no reflection. `armor_ray_tracing=1` puts it back.
 - **No shadows from distant armour.** Armour on fighters farther than 15 m casts no shadow.
 - **Skips the game mode's empty per-frame Blueprint.**
+- **Cheaper blood, same look.** The blood snapshot each fighter keeps for saves is copied 4 times a second instead of
+  every frame, and footsteps stop at the first floor vertex within 5 cm instead of searching the whole floor mesh.
+- **Physics on more CPU threads, same result.** Physics solves each group of touching bodies on its own. The stock
+  game only adds another thread for every 50 bodies, about two fighters' worth; the mod lowers that to 16, so a
+  crowded fight is shared out among more threads. Each group is solved the same way on any thread.
+- **Damage marker spheres skip overlap checks.** Each fighter carries about 230 small spheres the game uses to place
+  wounds by distance. Spheres set up to check what they overlap as they move stop
+  doing so (nothing in the game reads those checks) while the fighter's own body still makes them.
 - **Optional: no blood or dent painting.** Off by default (blood stays); this is the game's own switch.
 - **Frame time counters** on a key, and a performance line in `HSPerf.log` that also splits the CPU time between the
   game, render and RHI threads, and says when the frame is waiting on the GPU (or a frame cap) instead.
@@ -47,7 +55,7 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 |---|---|
 | F9 | Settings menu (during a fight) |
 | F10 | Frame time counters on or off |
-| Ctrl + F10 | Armour, weapon and corpse fixes off or on, to compare with the stock game |
+| Ctrl + F10 | Armour, weapon, corpse, blood and physics fixes off or on, to compare with the stock game |
 | Ctrl + Shift + F10 | Blueprint profiler: records up to 30 s (press again to stop early) |
 
 ## Settings menu
@@ -85,11 +93,15 @@ A file from 0.2.0 or older is updated on the first start: the settings whose def
 | `shadow_trim` | 1 | Armour on far fighters casts no shadow |
 | `shadow_trim_meters` | 15 | How far "far" is |
 | `vertex_paint` | 1 | 0: no blood or dents painted on bodies and armour |
+| `cheaper_blood` | 1 | Blood snapshot copied 4 times a second, footsteps' floor lookup stops within 5 cm (blood looks the same) |
 | `idle_weapons` | 1 | Weapons lying still stop ticking until they move or are picked up |
 | `corpse_sleep` | 1 | Dead fighters lying still stop ticking until something moves them |
 | `armor_ray_tracing` | 0 | 0: armour is left out of ray traced reflections and lighting (saves GPU time); 1 as the game ships |
 | `body_bounds` | 1 | The body drops the game's 1000x bounds, so off-screen fighters can be skipped |
 | `head_leader_pose` | 1 | The head and skeleton meshes follow the body's bones directly |
+| `physics_islands` | 1 | Physics shares groups of touching bodies out among more CPU threads (same result) |
+| `island_min_per_worker` | 16 | Bodies or joints one thread takes before another joins in (the game uses 50) |
+| `marker_spheres` | 1 | The damage marker spheres stop making overlap events nothing listens to |
 | `skip_empty_gamemode_tick` | 1 | Skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
 | `menu_key` | F9 | The settings menu key (`none` for no key) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |

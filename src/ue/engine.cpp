@@ -571,6 +571,18 @@ void* FunctionNative(const UFunction* f) { return f ? Read<void*>(f, kFuncNative
 UFunction* EventGraphFunction(const UFunction* f) { return f ? Read<UFunction*>(f, kFuncNative - 0x10) : nullptr; }
 int32_t EventGraphCallOffset(const UFunction* f) { return f ? Read<int32_t>(f, kFuncNative - 0x08) : 0; }
 void SetFunctionNative(UFunction* f, void* native) { if (f) std::memcpy(reinterpret_cast<uint8_t*>(f) + kFuncNative, &native, sizeof native); }
+// UE 5.4 UStruct::Script (TArray<uint8>) follows PropertiesSize and MinAlignment. A compiled body always ends in
+// EX_EndOfScript (0x53): anything else means the layout is not the one assumed here.
+uint8_t* ScriptBytes(const UFunction* f, int32_t* size) {
+    if (size) *size = 0;
+    if (!f) return nullptr;
+    constexpr size_t kStructScript = 0x60;
+    uint8_t* data = Read<uint8_t*>(f, kStructScript);
+    const int32_t num = Read<int32_t>(f, kStructScript + 8), max = Read<int32_t>(f, kStructScript + 12);
+    if (!data || num <= 0 || max < num || data[num - 1] != 0x53) return nullptr;
+    if (size) *size = num;
+    return data;
+}
 
 namespace {
 // The script VM on an unknown exe whose VM functions were not at their known addresses (FindAddresses):
