@@ -177,13 +177,12 @@ const char* const kLabels[] = {
     "Head and skeleton follow the body",
     "Skip the game mode's empty tick",
     "Physics on more threads (same result)",
-    "Marker spheres skip overlap checks",
     "Frame time counters (F10)",
     "Mod fixes (compare with Ctrl + F10)",
     "Record a 30 s profile (Ctrl + Shift + F10)",
     "Close (F9 or Esc)",
 };
-static_assert(sizeof kLabels / sizeof kLabels[0] == 18, "one label per row");
+static_assert(sizeof kLabels / sizeof kLabels[0] == 17, "one label per row");
 }  // namespace
 
 UObject* Menu::PlayerController(UObject* gameMode) {
@@ -353,7 +352,6 @@ MenuAction Menu::Change(int row, int dir, core::Settings& s) {
     case kHead: s.headLeaderPose = !s.headLeaderPose; break;
     case kSkipTick: s.skipEmptyGameModeTick = !s.skipEmptyGameModeTick; break;
     case kIslands: s.physicsIslands = !s.physicsIslands; break;
-    case kMarkers: s.markerSpheres = !s.markerSpheres; break;
     case kOverlay: return MenuAction::ToggleOverlay;
     case kFixes: return MenuAction::ToggleFixes;
     case kProfile: return MenuAction::ToggleProfile;
@@ -380,7 +378,6 @@ void Menu::Refresh(const core::Settings& s, const MenuInfo& info, bool statsDue)
     v[kHead] = onOff(s.headLeaderPose);
     v[kSkipTick] = onOff(s.skipEmptyGameModeTick);
     v[kIslands] = onOff(s.physicsIslands);
-    v[kMarkers] = onOff(s.markerSpheres);
     v[kOverlay] = onOff(info.overlay);
     v[kFixes] = info.fixesActive ? "on" : "off (as the game ships)";
     v[kProfile] = info.recording ? "recording, click to stop" : "start";

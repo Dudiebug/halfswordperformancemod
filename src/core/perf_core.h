@@ -31,7 +31,6 @@ struct Settings {
     bool armorRayTracing = false;    // false: armour is left out of hardware ray tracing (Lumen reflections, GI)
     bool physicsIslands = true;      // physics islands shared out among more worker threads (same result)
     int islandMinPerWorker = 16;     // bodies / constraints per worker before another one joins (the game: 50)
-    bool markerSpheres = true;       // the ~230 damage marker spheres per fighter make no overlap events (nothing reads them)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
     int menuKey = 0x78;              // virtual key (VK_F9): the settings menu
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
@@ -106,7 +105,6 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "armor_ray_tracing") s.armorRayTracing = ParseBool(v, s.armorRayTracing);
         else if (k == "physics_islands") s.physicsIslands = ParseBool(v, s.physicsIslands);
         else if (k == "island_min_per_worker") { const int n = std::atoi(v.c_str()); if (n >= 1 && n <= 1000) s.islandMinPerWorker = n; }
-        else if (k == "marker_spheres") s.markerSpheres = ParseBool(v, s.markerSpheres);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
         else if (k == "menu_key") s.menuKey = ParseKey(v, s.menuKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
@@ -173,8 +171,6 @@ inline std::string SettingsIni(const Settings& s) {
     t += std::string("physics_islands=") + b(s.physicsIslands) + "\n";
     t += "; How many bodies or joints one thread takes before another one joins in (the game uses 50).\n";
     t += "island_min_per_worker=" + std::to_string(s.islandMinPerWorker) + "\n";
-    t += "; The ~230 small damage marker spheres on each fighter stop making overlap events nothing listens to.\n";
-    t += std::string("marker_spheres=") + b(s.markerSpheres) + "\n";
     t += "; Opens the settings menu.\n";
     t += "menu_key=" + KeyName(s.menuKey) + "\n";
     t += "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare;\n";

@@ -27,9 +27,6 @@ combat changes. Every performance fix is on by default; the F9 menu turns each o
 - **Physics on more CPU threads, same result.** Physics solves each group of touching bodies on its own. The stock
   game only adds another thread for every 50 bodies, about two fighters' worth; the mod lowers that to 16, so a
   crowded fight is shared out among more threads. Each group is solved the same way on any thread.
-- **Damage marker spheres skip overlap checks.** Each fighter carries about 230 small spheres the game uses to place
-  wounds by distance. Spheres set up to check what they overlap as they move stop
-  doing so (nothing in the game reads those checks) while the fighter's own body still makes them.
 - **Optional: no blood or dent painting.** Off by default (blood stays); this is the game's own switch.
 - **Frame time counters** on a key, and a performance line in `HSPerf.log` that also splits the CPU time between the
   game, render and RHI threads, and says when the frame is waiting on the GPU (or a frame cap) instead.
@@ -101,7 +98,6 @@ A file from 0.2.0 or older is updated on the first start: the settings whose def
 | `head_leader_pose` | 1 | The head and skeleton meshes follow the body's bones directly |
 | `physics_islands` | 1 | Physics shares groups of touching bodies out among more CPU threads (same result) |
 | `island_min_per_worker` | 16 | Bodies or joints one thread takes before another joins in (the game uses 50) |
-| `marker_spheres` | 1 | The damage marker spheres stop making overlap events nothing listens to |
 | `skip_empty_gamemode_tick` | 1 | Skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
 | `menu_key` | F9 | The settings menu key (`none` for no key) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |

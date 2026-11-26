@@ -12,7 +12,7 @@ static void TestDefaults() {
     CHECK(s.enabled && s.armorLeaderPose && s.armorBounds && s.shadowTrim && s.vertexPaint);
     CHECK(s.idleWeapons && s.skipEmptyGameModeTick && s.cheaperBlood);
     CHECK(s.corpseSleep && s.bodyBounds && s.headLeaderPose && !s.armorRayTracing);
-    CHECK(s.physicsIslands && s.islandMinPerWorker == 16 && s.markerSpheres);
+    CHECK(s.physicsIslands && s.islandMinPerWorker == 16);
     CHECK(s.overlayKey == 0x79 && s.logSeconds == 10 && s.shadowTrimMeters == 15.0);
 }
 
@@ -32,7 +32,7 @@ static void TestParse() {
         "vertex_paint=false\noverlay_key=F9\nlog_seconds=30\narmor_bounds=1\nforce_unknown_build=2\nbogus=1\nidle_weapons=0\nskip_empty_gamemode_tick=0\n"
         "corpse_sleep=0\nbody_bounds=0\nhead_leader_pose=no\narmor_ray_tracing=on\ncheaper_blood=off\n"
         "physics_islands=0\nisland_min_per_worker=8\nmarker_spheres=off\n");
-    CHECK(!s.physicsIslands && s.islandMinPerWorker == 8 && !s.markerSpheres);
+    CHECK(!s.physicsIslands && s.islandMinPerWorker == 8);   // a 0.5.0 file's marker_spheres line is ignored
     CHECK(!s.cheaperBlood);
     CHECK(!s.corpseSleep && !s.bodyBounds && !s.headLeaderPose && s.armorRayTracing);
     CHECK(!s.idleWeapons && !s.skipEmptyGameModeTick);
@@ -61,7 +61,7 @@ static bool Same(const Settings& a, const Settings& b) {
            a.skipEmptyGameModeTick == b.skipEmptyGameModeTick && a.overlayKey == b.overlayKey && a.menuKey == b.menuKey &&
            a.logSeconds == b.logSeconds && a.forceUnknownBuild == b.forceUnknownBuild && a.corpseSleep == b.corpseSleep &&
            a.bodyBounds == b.bodyBounds && a.headLeaderPose == b.headLeaderPose && a.armorRayTracing == b.armorRayTracing && a.cheaperBlood == b.cheaperBlood &&
-           a.physicsIslands == b.physicsIslands && a.islandMinPerWorker == b.islandMinPerWorker && a.markerSpheres == b.markerSpheres;
+           a.physicsIslands == b.physicsIslands && a.islandMinPerWorker == b.islandMinPerWorker;
 }
 
 static void TestIniRoundTrip() {
@@ -70,7 +70,7 @@ static void TestIniRoundTrip() {
     s.enabled = false; s.armorBounds = false; s.shadowTrim = false; s.shadowTrimMeters = 22.5; s.vertexPaint = false;
     s.idleWeapons = false; s.skipEmptyGameModeTick = false; s.overlayKey = 0x7A; s.menuKey = 0; s.logSeconds = 0; s.forceUnknownBuild = 1;
     s.corpseSleep = false; s.bodyBounds = false; s.headLeaderPose = false; s.armorRayTracing = true; s.cheaperBlood = false;
-    s.physicsIslands = false; s.islandMinPerWorker = 32; s.markerSpheres = false;
+    s.physicsIslands = false; s.islandMinPerWorker = 32;
     CHECK(Same(ParseSettings(SettingsIni(s)), s));
     s.menuKey = 0xC0;   // not an F key
     CHECK(ParseSettings(SettingsIni(s)).menuKey == 0xC0);

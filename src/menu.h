@@ -33,7 +33,7 @@ public:
     void Status(const std::string& line);   // the line under the rows (what the last action did)
 
 private:
-    enum Row { kLeader, kBounds, kShadow, kShadowMeters, kArmorRt, kPaint, kBlood, kWeapons, kCorpses, kBodyBounds, kHead, kSkipTick, kIslands, kMarkers, kOverlay,
+    enum Row { kLeader, kBounds, kShadow, kShadowMeters, kArmorRt, kPaint, kBlood, kWeapons, kCorpses, kBodyBounds, kHead, kSkipTick, kIslands, kOverlay,
                kFixes, kProfile, kClose, kRows };
     struct Widgets {
         ue::UObject* root = nullptr;        // the Border on the HUD's canvas

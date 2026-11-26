@@ -1,7 +1,10 @@
 #include "physics.h"
 #include "log.h"
+#include <windows.h>
 #include <cstdio>
+#include <cwctype>
 #include <string>
+#include <thread>
 
 namespace hsp {
 using namespace ue;
@@ -32,13 +35,21 @@ bool Simulating(UObject* o) {
     Call c(o, "IsSimulatingPhysics");
     return c.valid() && c.setName("BoneName", FName{}).invoke() && c.get<bool>("ReturnValue");
 }
+
+// The engine's own choice for the scene solver (FChaosScene: TaskGraph when FApp::ShouldUseThreadingForPerformance,
+// which is false only with -onethread or -noperfthreads, or on one core). The ini's DefaultThreadingModel is not read.
+void LogSolverThreading() {
+    std::wstring cmd = GetCommandLineW();
+    for (auto& ch : cmd) ch = wchar_t(std::towlower(ch));
+    const bool switchOff = cmd.find(L"onethread") != std::wstring::npos || cmd.find(L"noperfthreads") != std::wstring::npos;
+    const unsigned cores = std::thread::hardware_concurrency();
+    HSP_LOG("physics: scene solver %s (the engine's choice; %u logical cores%s)", switchOff || cores == 1 ? "single thread" : "on the task graph",
+            cores, switchOff ? ", -onethread or -noperfthreads on the command line" : "");
+}
 }  // namespace
 
 bool PhysicsFixes::Prepare() {
-    if (prepared_ && willie_ && ObjectAt(willieIndex_) != reinterpret_cast<UObject*>(willie_)) {
-        prepared_ = unusable_ = false;   // a new level's class: the old spheres are gone with the old fighters
-        off_.clear();
-    }
+    if (prepared_ && willie_ && ObjectAt(willieIndex_) != reinterpret_cast<UObject*>(willie_)) prepared_ = unusable_ = false;   // a new level's class
     if (prepared_) return !unusable_;
     willie_ = FindClass("Willie_BP_C");
     UObject* gs = FindObject("GameplayStatics", "Class");
@@ -47,19 +58,8 @@ bool PhysicsFixes::Prepare() {
     willieIndex_ = ObjectIndex(reinterpret_cast<UObject*>(willie_));
     statics_ = DefaultObject(reinterpret_cast<UClass*>(gs));
     allActors_ = PreparedCall(reinterpret_cast<UClass*>(gs), "GetAllActorsOfClass", {"WorldContextObject", "ActorClass", "OutActors"});
-    UClass* prim = FindClass("PrimitiveComponent");
-    UFunction* setOverlaps = prim ? FindFunction(prim, "SetGenerateOverlapEvents") : nullptr;
-    const bool ok = allActors_.valid() && FindProperty(willie_, "Damage Marker Spheres") && FindProperty(willie_, "Mesh") && setOverlaps &&
-                    FindProperty(setOverlaps, "bInGenerateOverlapEvents") && FindFunction(prim, "GetGenerateOverlapEvents") &&
-                    FindFunction(prim, "GetCollisionEnabled");
-    unusable_ = !ok;
-    HSP_LOG("physics: %s", unusable_ ? "this game build differs from the one the mod knows; marker sphere fix off" : "marker sphere fix ready");
+    unusable_ = !allActors_.valid() || !FindProperty(willie_, "Mesh");
     return !unusable_;
-}
-
-bool PhysicsFixes::SetOverlaps(UObject* c, bool on) {
-    Call call(c, "SetGenerateOverlapEvents");
-    return call.valid() && call.set<bool>("bInGenerateOverlapEvents", on).invoke();
 }
 
 void PhysicsFixes::Islands(UObject* gameMode, Console console) {
@@ -106,57 +106,19 @@ void PhysicsFixes::LogFighter(UObject* fighter, UObject* body) {
     }
 }
 
-void PhysicsFixes::Markers(const std::vector<UObject*>& fighters) {
-    const bool want = s_.markerSpheres && active_;
-    std::unordered_map<UObject*, bool> bodyOk;   // fighter -> its body mesh gives the actor its overlaps
-    int markers = 0;
-    for (UObject* w : fighters) {
-        if (!Alive(w)) continue;
-        UObject* body = Obj(w, "Mesh");
-        if (!Alive(body)) continue;
-        if (!logged_) LogFighter(w, body);
-        // ECollisionEnabled QueryOnly, QueryAndPhysics or QueryAndProbe: the body makes query overlaps of its own.
-        const int ce = want ? CallByte(body, "GetCollisionEnabled") : 0;
-        const bool ok = want && (ce == 1 || ce == 3 || ce == 5) && CallBool(body, "GetGenerateOverlapEvents");
-        bodyOk[w] = ok;
-        const auto* spheres = static_cast<TArrayRaw*>(FieldPtr(w, "Damage Marker Spheres"));
-        if (!spheres || !spheres->data || spheres->num <= 0) continue;
-        markers += spheres->num;
-        if (!ok) continue;
-        for (int i = 0; i < spheres->num; ++i) {
-            UObject* c = spheres->data[i];
-            if (!Alive(c) || off_.count(c)) continue;
-            // Only a sphere still on this fighter's body; one the game turned overlaps off on itself is left alone.
-            if (!CallBool(c, "GetGenerateOverlapEvents")) off_[c] = Marker{ObjectIndex(c), w, false};
-            else if (SetOverlaps(c, false)) off_[c] = Marker{ObjectIndex(c), w, true};
-        }
-    }
-    // Back on wherever the body stopped covering for them (no collision, a destroyed fighter's leftovers), or when off.
-    for (auto it = off_.begin(); it != off_.end();) {
-        UObject* c = it->first;
-        const bool alive = ObjectAt(it->second.index) == c && Alive(c);
-        auto b = bodyOk.find(it->second.fighter);
-        if (alive && b != bodyOk.end() && b->second) { ++it; continue; }
-        if (alive && it->second.ours) SetOverlaps(c, true);
-        it = off_.erase(it);
-    }
-    counts_.markers = markers;
-    counts_.markersOff = 0;
-    for (const auto& [c, m] : off_) counts_.markersOff += m.ours;
-}
-
 void PhysicsFixes::Pass(UObject* gameMode, Console console) {
+    if (!threadingLogged_) { LogSolverThreading(); threadingLogged_ = true; }
     Islands(gameMode, console);
     counts_.islandMin = islandsSet_ ? islandsSet_ : kGameIslandMin;
-    if (!Prepare()) return;
-    if (!s_.markerSpheres || !active_) {
-        if (off_.empty() && logged_) return;   // nothing of ours to put back (the diagnostic still runs once)
-    }
+    if (logged_ || !Prepare()) return;
     allActors_.put<UObject*>(0, gameMode).put<UClass*>(1, willie_);
     if (!allActors_.invoke(statics_)) return;
     const TArrayRaw found = allActors_.take<TArrayRaw>(2);
-    std::vector<UObject*> fighters(found.data, found.data + (found.data && found.num > 0 ? found.num : 0));
-    Markers(fighters);
+    for (int i = 0; found.data && i < found.num && !logged_; ++i) {
+        UObject* w = found.data[i];
+        UObject* body = Alive(w) ? Obj(w, "Mesh") : nullptr;
+        if (Alive(body)) LogFighter(w, body);
+    }
 }
 
 }  // namespace hsp
