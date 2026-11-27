@@ -77,9 +77,9 @@ std::string ThreadTimes::Line(double frameMs) {
         const double f = wallMs / frameMs;   // frames in the interval
         const double busiest = std::max(game, std::max(render, rhi)) / wallMs;
         char buf[256];
-        std::snprintf(buf, sizeof buf, " | cpu ms a frame: game %.1f, render %.1f, rhi %.1f, other %.1f (most: %s %.1f); busiest %.0f%%%s",
-                      game / f, render / f, rhi / f, other / f, topName.empty() ? "none" : topName.c_str(), top / f, busiest * 100,
-                      busiest < 0.85 ? " (waiting on the GPU or a frame cap)" : "");
+        std::snprintf(buf, sizeof buf, " | cpu ms a frame: game %.1f (idle %.1f), render %.1f, rhi %.1f, other %.1f (most: %s %.1f); busiest %.0f%%%s",
+                      game / f, std::max(0.0, frameMs - game / f), render / f, rhi / f, other / f, topName.empty() ? "none" : topName.c_str(),
+                      top / f, busiest * 100, busiest < 0.85 ? " (no thread is flat out: they wait on each other, the GPU or a frame cap)" : "");
         out = buf;
     }
     last_.swap(now);

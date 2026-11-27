@@ -12,8 +12,9 @@
 namespace hsp::core {
 
 // HSPerf.ini files written before this version keep their own value for every key except the ones whose default
-// changed with it (armor_bounds, shadow_trim and skip_empty_gamemode_tick in 2): those take the new default.
-constexpr int kSettingsVersion = 2;
+// changed with it (armor_bounds, shadow_trim and skip_empty_gamemode_tick in 2; island_min_per_worker, when it was the old
+// default 16, in 3): those take the new default.
+constexpr int kSettingsVersion = 3;
 
 struct Settings {
     bool enabled = true;
@@ -30,7 +31,8 @@ struct Settings {
     bool headLeaderPose = true;      // head and skeleton meshes follow the body's bones
     bool armorRayTracing = false;    // false: armour is left out of hardware ray tracing (Lumen reflections, GI)
     bool physicsIslands = true;      // physics islands shared out among more worker threads (same result)
-    int islandMinPerWorker = 16;     // bodies / constraints per worker before another one joins (the game: 50)
+    int islandMinPerWorker = 8;      // bodies / constraints per worker before another one joins (the game: 50)
+    bool threadScheduling = true;    // animation and physics work on worker threads, task priorities (same result)
     int overlayKey = 0x79;           // virtual key (VK_F10): stat fps / stat unit on and off
     int menuKey = 0x78;              // virtual key (VK_F9): the settings menu
     int logSeconds = 10;             // a perf line every N seconds (0 = never)
@@ -105,6 +107,7 @@ inline Settings ParseSettings(const std::string& text) {
         else if (k == "armor_ray_tracing") s.armorRayTracing = ParseBool(v, s.armorRayTracing);
         else if (k == "physics_islands") s.physicsIslands = ParseBool(v, s.physicsIslands);
         else if (k == "island_min_per_worker") { const int n = std::atoi(v.c_str()); if (n >= 1 && n <= 1000) s.islandMinPerWorker = n; }
+        else if (k == "thread_scheduling") s.threadScheduling = ParseBool(v, s.threadScheduling);
         else if (k == "overlay_key") s.overlayKey = ParseKey(v, s.overlayKey);
         else if (k == "menu_key") s.menuKey = ParseKey(v, s.menuKey);
         else if (k == "log_seconds") { const int n = std::atoi(v.c_str()); if (n >= 0 && n <= 3600) s.logSeconds = n; }
@@ -115,6 +118,7 @@ inline Settings ParseSettings(const std::string& text) {
         s.shadowTrim = defaults.shadowTrim;
         s.skipEmptyGameModeTick = defaults.skipEmptyGameModeTick;
     }
+    if (version < 3 && s.islandMinPerWorker == 16) s.islandMinPerWorker = defaults.islandMinPerWorker;
     // Bounds from the body only exist for a piece that follows the body's pose.
     if (!s.armorLeaderPose) s.armorBounds = false;
     return s;
@@ -171,10 +175,13 @@ inline std::string SettingsIni(const Settings& s) {
     t += std::string("physics_islands=") + b(s.physicsIslands) + "\n";
     t += "; How many bodies or joints one thread takes before another one joins in (the game uses 50).\n";
     t += "island_min_per_worker=" + std::to_string(s.islandMinPerWorker) + "\n";
-    t += "; Opens the settings menu.\n";
+    t += "; Animation and physics blending run on worker threads, physics island groups twice per worker, skinned meshes\n";
+    t += "; tick first and task priorities follow the work waiting on them (only where and when, never what, is computed).\n";
+    t += std::string("thread_scheduling=") + b(s.threadScheduling) + "\n";
+    t += "; Opens the settings menu. Ctrl + this key turns the mod's fixes off and on, to compare; Ctrl + Shift + this key\n";
+    t += "; starts a profile, and again stops it; Ctrl + Alt + this key runs the scheduling bench.\n";
     t += "menu_key=" + KeyName(s.menuKey) + "\n";
-    t += "; Shows the frame time counters. Ctrl + this key turns the armour and weapon fixes off and on, to compare;\n";
-    t += "; Ctrl + Shift + this key records a 30 s profile.\n";
+    t += "; Shows the frame time counters.\n";
     t += "overlay_key=" + KeyName(s.overlayKey) + "\n";
     t += "; A performance line in HSPerf.log every N seconds (0 = never).\n";
     t += "log_seconds=" + std::to_string(s.logSeconds) + "\n";

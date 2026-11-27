@@ -1,6 +1,6 @@
 // Blueprint profiler, ported from HSMMod's (same report and timeline format).
 //
-// Ctrl + Shift + the overlay key (F10) records up to 30 s; the same key stops early. Stopping writes HSPerfProfile-<date>-
+// Ctrl + Shift + the menu key (F9) starts a capture and the same keys stop it (no time limit). Stopping writes HSPerfProfile-<date>-
 // <time>.txt (functions by self and inclusive time, the frame times) and a .json timeline (Chrome trace format:
 // ui.perfetto.dev, chrome://tracing, speedscope) next to the game exe.
 //

@@ -17,7 +17,7 @@ namespace hsp {
 // What the menu shows besides the settings, filled by the tick every frame the menu is open.
 struct MenuInfo {
     bool overlay = false;      // the F10 counters
-    bool fixesActive = true;   // the A/B switch (Ctrl + F10)
+    bool fixesActive = true;   // the A/B switch (Ctrl + F9)
     bool recording = false;    // a profile capture is running
     std::string stats;         // one line: frame times and counts
 };
@@ -33,7 +33,7 @@ public:
     void Status(const std::string& line);   // the line under the rows (what the last action did)
 
 private:
-    enum Row { kLeader, kBounds, kShadow, kShadowMeters, kArmorRt, kPaint, kBlood, kWeapons, kCorpses, kBodyBounds, kHead, kSkipTick, kIslands, kOverlay,
+    enum Row { kLeader, kBounds, kShadow, kShadowMeters, kArmorRt, kPaint, kBlood, kWeapons, kCorpses, kBodyBounds, kHead, kSkipTick, kIslands, kScheduling, kOverlay,
                kFixes, kProfile, kClose, kRows };
     struct Widgets {
         ue::UObject* root = nullptr;        // the Border on the HUD's canvas

@@ -5,6 +5,7 @@
 // or whatever another mod put there first) and then runs this mod's work. HSMMod, HS Enhancer and UE4SS detour
 // ProcessEvent and the script VM with inline hooks; a pointer swap stays out of their way in any load order.
 #include "armor.h"
+#include "bench.h"
 #include "blood.h"
 #include "config.h"
 #include "corpses.h"
@@ -43,6 +44,7 @@ ThreadTimes g_threads;
 std::atomic<bool> g_skipOrig{false};
 std::atomic<bool> g_origIsVm{false};   // the Func found on ReceiveTick was the script VM (so its body may be skipped)
 Menu g_menu;
+Bench g_bench;
 
 double NowMs() {
     static LARGE_INTEGER freq = [] { LARGE_INTEGER f; QueryPerformanceFrequency(&f); return f; }();
@@ -69,7 +71,7 @@ void Console(UObject* worldContext, const char* command) {
 struct TickState {
     double lastFrame = 0, lastPass = 0, lastLog = 0;
     core::FrameStats frames;
-    bool keyDown = false, overlay = false;
+    bool keyDown = false, ctrlKeyDown = false, overlay = false;
     double avgMs = 0;   // frame time, smoothed (the menu's stats line)
 };
 TickState g_tick;
@@ -99,15 +101,20 @@ void ToggleOverlay(UObject* gameMode) {
     Console(gameMode, "stat unit");
 }
 
+// The overlay key shows the counters. Ctrl + the menu key is the A/B switch, Ctrl + Shift + it the profiler, Ctrl + Alt
+// + it the scheduling bench (the menu itself ignores a press with Ctrl held).
 void Keys(UObject* gameMode) {
-    if (!g_settings.overlayKey) return;
-    const bool down = GameHasFocus() && (GetAsyncKeyState(g_settings.overlayKey) & 0x8000);
-    if (down && !g_tick.keyDown) {
-        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) ToggleProfile(gameMode);
-        else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ToggleFixes();
-        else ToggleOverlay(gameMode);
+    const bool focus = GameHasFocus();
+    const bool overlay = focus && g_settings.overlayKey && (GetAsyncKeyState(g_settings.overlayKey) & 0x8000);
+    if (overlay && !g_tick.keyDown) ToggleOverlay(gameMode);
+    g_tick.keyDown = overlay;
+    const bool ctrl = focus && g_settings.menuKey && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(g_settings.menuKey) & 0x8000);
+    if (ctrl && !g_tick.ctrlKeyDown) {
+        if (GetAsyncKeyState(VK_MENU) & 0x8000) HSP_LOG("%s", g_bench.Toggle(gameMode, &Console).c_str());
+        else if (GetAsyncKeyState(VK_SHIFT) & 0x8000) ToggleProfile(gameMode);
+        else ToggleFixes();
     }
-    g_tick.keyDown = down;
+    g_tick.ctrlKeyDown = ctrl;
 }
 
 void MenuTick(UObject* gameMode) {
@@ -150,6 +157,7 @@ void OnGameTick(UObject* gameMode) {
     if (const std::string msg = prof::Frame(gameMode, gap); !msg.empty()) HSP_LOG("%s", msg.c_str());
     Keys(gameMode);
     MenuTick(gameMode);
+    if (gap > 0) g_bench.Frame(gameMode, &Console, now, gap, g_armor->Counts().fighters);
     {
         prof::Scope s("weapon and corpse wake check");
         g_weapons->Frame();
@@ -171,11 +179,11 @@ void OnGameTick(UObject* gameMode) {
             const CorpseCounts cc = g_corpses->Counts();
             const std::string cpu = g_threads.Line(g_tick.frames.Average());
             HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d (dead %d, tick off %d; bounds %d, head/skeleton follow %d), "
-                    "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), cheaper blood (snapshot %d, footsteps %d), physics (islands %d per worker), fixes %s%s",
+                    "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), cheaper blood (snapshot %d, footsteps %d), physics (islands %d per worker, scheduling %s), fixes %s%s",
                     g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, cc.dead, cc.tickOff,
                     c.bodyBounds, c.headLeader, c.pieces, c.leader, c.shadowOff, c.rtOff, wc.weapons, wc.tickOff,
                     int(g_blood->Counts().snapshot), int(g_blood->Counts().footsteps),
-                    g_physics->Counts().islandMin,
+                    g_physics->Counts().islandMin, g_physics->Counts().scheduling ? "on" : "off",
                     g_armor->Active() ? "on" : "OFF", cpu.c_str());
         }
         g_tick.frames.Reset();

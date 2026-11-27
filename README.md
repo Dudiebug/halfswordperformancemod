@@ -25,8 +25,13 @@ combat changes. Every performance fix is on by default; the F9 menu turns each o
 - **Cheaper blood, same look.** The blood snapshot each fighter keeps for saves is copied 4 times a second instead of
   every frame, and footsteps stop at the first floor vertex within 5 cm instead of searching the whole floor mesh.
 - **Physics on more CPU threads, same result.** Physics solves each group of touching bodies on its own. The stock
-  game only adds another thread for every 50 bodies, about two fighters' worth; the mod lowers that to 16, so a
-  crowded fight is shared out among more threads. Each group is solved the same way on any thread.
+  game only adds another thread for every 50 bodies, about two fighters' worth; the mod lowers that to 8 and gives
+  each thread two groups, so a crowded fight is shared out among more threads. Each group is solved the same way on
+  any thread.
+- **Animation on more CPU threads, same result.** The mod keeps animation update, evaluation, interpolation and
+  physics blending on worker threads and skinned meshes ahead in the tick queue, and has the task scheduler raise the
+  priority of work something is waiting on. Only where and when the work runs changes. The first `physics:` lines
+  in `HSPerf.log` show which of these the game already had.
 - **Optional: no blood or dent painting.** Off by default (blood stays); this is the game's own switch.
 - **Frame time counters** on a key, and a performance line in `HSPerf.log` that also splits the CPU time between the
   game, render and RHI threads, and says when the frame is waiting on the GPU (or a frame cap) instead.
@@ -52,8 +57,9 @@ To uninstall, delete `winhttp.dll`. You can also delete `HSPerf.ini` and `HSPerf
 |---|---|
 | F9 | Settings menu (during a fight) |
 | F10 | Frame time counters on or off |
-| Ctrl + F10 | Armour, weapon, corpse, blood and physics fixes off or on, to compare with the stock game |
-| Ctrl + Shift + F10 | Blueprint profiler: records up to 30 s (press again to stop early) |
+| Ctrl + F9 | Armour, weapon, corpse, blood and physics fixes off or on, to compare with the stock game |
+| Ctrl + Shift + F9 | Blueprint profiler: starts recording; press again to stop |
+| Ctrl + Alt + F9 | Scheduling bench: tries thread settings against the ones in use during a fight (about 2 min) |
 
 ## Settings menu
 
@@ -64,7 +70,7 @@ fighter gets no keys or mouse while it is open.
 
 ## Profiler
 
-Ctrl + Shift + F10 starts a capture; `HSPerf.log` says when it starts and stops. It writes `HSPerfProfile-<date>-<time>.txt`
+Ctrl + Shift + F9 starts a capture and the same keys stop it (it records until you do); `HSPerf.log` says when it starts and stops. It writes `HSPerfProfile-<date>-<time>.txt`
 (the Blueprints and engine calls by time per frame, and the frame times) and a `.json` timeline next to the game exe.
 Open the `.json` in [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`.
 
@@ -76,11 +82,20 @@ Open the `.json` in [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://trac
 - A level change ends the capture.
 - With HSMMod installed it does nothing: use HSMMod's own profiler (Ctrl+Shift+P), which also sees Blueprint-to-Blueprint calls.
 
+## Scheduling bench
+
+Ctrl + Alt + F9 during a fight with 2 or more fighters tries engine settings that only change which threads do the
+work and in what order (physics island groups, animation on worker threads, task priority), never what is computed.
+The ones the mod already uses are measured the other way round, against the game's own value.
+Each runs in 3 s windows that alternate with the settings in use, twice over; windows with a level load or fewer than
+2 fighters are run again in the next fight. When it finishes (or on Ctrl + Alt + F9 again) every setting is put back
+and `HSPerf.log` gets one line per setting: its average frame time next to the settings in use.
+
 ## Settings (`HSPerf.ini`)
 
 The F9 menu changes these in game. If you edit the file by hand, restart the game. `enabled`, the keys and
 `log_seconds` only change on a restart. The menu writes the whole file again, so comments you add are not kept.
-A file from 0.2.0 or older is updated on the first start: the settings whose default changed take the new default.
+A file from an older version is updated on the first start: the settings whose default changed take the new default.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -97,9 +112,10 @@ A file from 0.2.0 or older is updated on the first start: the settings whose def
 | `body_bounds` | 1 | The body drops the game's 1000x bounds, so off-screen fighters can be skipped |
 | `head_leader_pose` | 1 | The head and skeleton meshes follow the body's bones directly |
 | `physics_islands` | 1 | Physics shares groups of touching bodies out among more CPU threads (same result) |
-| `island_min_per_worker` | 16 | Bodies or joints one thread takes before another joins in (the game uses 50) |
+| `island_min_per_worker` | 8 | Bodies or joints one thread takes before another joins in (the game uses 50) |
+| `thread_scheduling` | 1 | Animation and physics blending on worker threads, task priorities (same result) |
 | `skip_empty_gamemode_tick` | 1 | Skips the game mode's empty per-frame Blueprint (about a microsecond a frame) |
-| `menu_key` | F9 | The settings menu key (`none` for no key) |
+| `menu_key` | F9 | The settings menu key; with Ctrl the compare switch, with Ctrl + Shift the profiler (`none` for no key) |
 | `overlay_key` | F10 | The counters key (`none` for no key) |
 | `log_seconds` | 10 | A performance line in `HSPerf.log` every N seconds (0 = never) |
 

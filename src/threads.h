@@ -2,8 +2,9 @@
 //
 // Each perf line compares every thread's CPU time (GetThreadTimes) with the last line's: the game thread (the one the
 // tick runs on), RenderThread, RHIThread and everything else. Threads are named by the engine (GetThreadDescription,
-// which Proton has too). When even the busiest of the three was busy for less than 85% of the time, the frame is
-// waiting on something else: the GPU or a frame cap.
+// which Proton has too). The game thread's idle time is the frame time minus its CPU time. When even the busiest of the
+// three was busy for less than 85% of the time, the frame is waiting: threads on each other (physics or animation tasks
+// the game thread joins), the GPU, or a frame cap. Under Proton with the GPU at 45% it was the first.
 #pragma once
 #include <cstdint>
 #include <string>

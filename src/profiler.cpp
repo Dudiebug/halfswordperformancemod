@@ -14,7 +14,6 @@ namespace hsp::prof {
 using namespace ue;
 
 namespace {
-constexpr double kSeconds = 30;
 constexpr double kTimelineUs = 20;
 constexpr size_t kTimelineMaxEvents = 1000000;   // about 100 MB of JSON at most
 constexpr uint32_t kFuncNative = 0x00000400;     // EFunctionFlags::FUNC_Native
@@ -195,8 +194,8 @@ std::string Start(UObject* gameMode, void* tickThunk) {
     g_prof.Start(g_tsc0, o);
     g_on.store(true, std::memory_order_release);
     char b[200];
-    std::snprintf(b, sizeof b, "profiler: recording for up to %.0f s (Ctrl+Shift+F10 stops); %zu functions timed (%.1f ms to set up), %.0f ns per call measured",
-                  kSeconds, n, installMs, g_overheadNs);
+    std::snprintf(b, sizeof b, "profiler: recording until Ctrl+Shift+F9 stops it; %zu functions timed (%.1f ms to set up), %.0f ns per call measured",
+                  n, installMs, g_overheadNs);
     return b;
 }
 
@@ -247,7 +246,7 @@ std::string Frame(UObject* gameMode, double frameGapMs) {
     // A level change (new game mode, or a load-screen pause): the old level's functions are being freed.
     if (gameMode != g_gameMode || frameGapMs > 1000) return Stop() + " (level change)";
     g_prof.FrameMark(Now());
-    return QpcMs(Qpc() - g_qpc0) >= kSeconds * 1000.0 ? Stop() : std::string();
+    return {};
 }
 
 bool BeginMod(const char* name) {

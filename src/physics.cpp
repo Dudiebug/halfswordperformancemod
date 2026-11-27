@@ -14,6 +14,21 @@ constexpr int kGameIslandMin = 50;   // the exe's default for both MinBodiesPerW
 struct TArrayRaw { UObject** data; int32_t num, max; };
 static_assert(sizeof(TArrayRaw) == 16, "TArray header");
 
+struct SchedulingValue { const char* cvar; int value; };
+constexpr SchedulingValue kScheduling[] = {
+    {"p.Chaos.Solver.IslandGroups.WorkerMultiplier", 2},
+    {"TaskGraph.UseDynamicPrioritization", 1},
+    {"a.ParallelAnimUpdate", 1},
+    {"a.ParallelAnimEvaluation", 1},
+    {"a.ParallelAnimInterpolation", 1},
+    {"a.ParallelBlendPhysics", 1},
+    {"tick.HiPriSkinnedMeshes", 1},
+};
+constexpr int kSchedulingCount = int(sizeof kScheduling / sizeof kScheduling[0]);
+int g_original[kSchedulingCount];
+bool g_readable[kSchedulingCount];
+bool g_originalsRead = false;
+
 bool Alive(UObject* o) { return o && !IsGarbage(o); }
 
 UObject* Obj(UObject* o, const char* prop) {
@@ -48,6 +63,27 @@ void LogSolverThreading() {
 }
 }  // namespace
 
+bool ReadConsoleInt(const std::string& cvar, int& out) {
+    static UObject* ksl = nullptr;
+    if (!ksl) if (UObject* c = FindObject("KismetSystemLibrary", "Class")) ksl = DefaultObject(reinterpret_cast<UClass*>(c));
+    if (!ksl) return false;
+    FStringArgHolder name(cvar);
+    Call c(ksl, "GetConsoleVariableIntValue");
+    if (!c.valid() || !c.set("VariableName", name.arg).invoke()) return false;
+    out = c.get<int32_t>("ReturnValue");
+    return true;
+}
+
+bool GameCvarValue(const std::string& cvar, int& out) {
+    if (cvar == "p.Chaos.Solver.IslandGroups.MinBodiesPerWorker" || cvar == "p.Chaos.Solver.IslandGroups.MinConstraintsPerWorker") {
+        out = kGameIslandMin;
+        return true;
+    }
+    for (int i = 0; g_originalsRead && i < kSchedulingCount; ++i)
+        if (g_readable[i] && cvar == kScheduling[i].cvar) { out = g_original[i]; return true; }
+    return false;
+}
+
 bool PhysicsFixes::Prepare() {
     if (prepared_ && willie_ && ObjectAt(willieIndex_) != reinterpret_cast<UObject*>(willie_)) prepared_ = unusable_ = false;   // a new level's class
     if (prepared_) return !unusable_;
@@ -74,11 +110,37 @@ void PhysicsFixes::Islands(UObject* gameMode, Console console) {
     islandsSet_ = want;
 }
 
-// Once: what the first fighter's marker spheres, body and armour pieces have, so their cost can be judged.
+void PhysicsFixes::Scheduling(UObject* gameMode, Console console) {
+    if (!g_originalsRead) {
+        if (!FindObject("KismetSystemLibrary", "Class")) return;   // not loaded yet: the next pass reads them
+        std::string seen;
+        for (int i = 0; i < kSchedulingCount; ++i) {
+            g_readable[i] = ReadConsoleInt(kScheduling[i].cvar, g_original[i]);
+            seen += std::string(seen.empty() ? "" : ", ") + kScheduling[i].cvar + " " + (g_readable[i] ? std::to_string(g_original[i]) : "not readable");
+        }
+        g_originalsRead = true;
+        HSP_LOG("physics: the game's scheduling values: %s", seen.c_str());
+    }
+    const bool want = s_.threadScheduling && active_;
+    if (want == schedulingOn_) return;
+    std::string changed;
+    for (int i = 0; i < kSchedulingCount; ++i) {
+        if (!g_readable[i] || g_original[i] == kScheduling[i].value) continue;
+        char cmd[96];
+        std::snprintf(cmd, sizeof cmd, "%s %d", kScheduling[i].cvar, want ? kScheduling[i].value : g_original[i]);
+        console(gameMode, cmd);
+        changed += std::string(changed.empty() ? "" : ", ") + cmd;
+    }
+    HSP_LOG("physics: thread scheduling %s (%s)", want ? "on" : "back to the game's own", changed.empty() ? "nothing to change" : changed.c_str());
+    schedulingOn_ = want;
+}
+
+// Once: what the first fighter wearing armour has on its marker spheres, body and armour pieces, so their cost can be judged.
 void PhysicsFixes::LogFighter(UObject* fighter, UObject* body) {
     const auto* spheres = static_cast<TArrayRaw*>(FieldPtr(fighter, "Damage Marker Spheres"));
     const auto* worn = static_cast<TArrayRaw*>(FieldPtr(fighter, "Worn Armor"));
     if (!spheres || spheres->num <= 0 || !spheres->data) return;   // not set up yet
+    if (!worn || worn->num <= 0 || !worn->data) return;            // no armour on (the dress-up mannequin): wait for one that has
     logged_ = true;
     int collision[4] = {}, overlaps = 0, simulating = 0, other = 0;
     int type = -1;
@@ -109,7 +171,9 @@ void PhysicsFixes::LogFighter(UObject* fighter, UObject* body) {
 void PhysicsFixes::Pass(UObject* gameMode, Console console) {
     if (!threadingLogged_) { LogSolverThreading(); threadingLogged_ = true; }
     Islands(gameMode, console);
+    Scheduling(gameMode, console);
     counts_.islandMin = islandsSet_ ? islandsSet_ : kGameIslandMin;
+    counts_.scheduling = schedulingOn_;
     if (logged_ || !Prepare()) return;
     allActors_.put<UObject*>(0, gameMode).put<UClass*>(1, willie_);
     if (!allActors_.invoke(statics_)) return;
