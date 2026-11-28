@@ -178,7 +178,7 @@ void OnGameTick(UObject* gameMode) {
             const WeaponCounts wc = g_weapons->Counts();
             const CorpseCounts cc = g_corpses->Counts();
             const std::string cpu = g_threads.Line(g_tick.frames.Average());
-            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d (dead %d, tick off %d; bounds %d, head/skeleton follow %d), "
+            HSP_LOG("perf: frames %zu avg %.1f ms p99 %.1f max %.1f | fighters %d (dead %d, tick off %d; bounds %d, skeleton follows %d), "
                     "armour pieces %d (leader pose %d, shadow off %d, ray tracing off %d), weapons %d (tick off %d), cheaper blood (snapshot %d, footsteps %d), physics (islands %d per worker, scheduling %s), fixes %s%s",
                     g_tick.frames.Count(), g_tick.frames.Average(), g_tick.frames.P99(), g_tick.frames.Max(), c.fighters, cc.dead, cc.tickOff,
                     c.bodyBounds, c.headLeader, c.pieces, c.leader, c.shadowOff, c.rtOff, wc.weapons, wc.tickOff,

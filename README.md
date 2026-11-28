@@ -17,7 +17,8 @@ combat changes. Every performance fix is on by default; the F9 menu turns each o
   millisecond each). The mod pauses it once the body has settled, and resumes it the moment the body is moved.
 - **Tighter body bounds.** The stock game makes each fighter's body bounds a thousand times too big, so a body is
   never skipped, even behind the camera. The mod drops that.
-- **Head and skeleton follow the body.** Like armour, they use the body's bones directly.
+- **The skeleton follows the body.** Like armour, it uses the body's bones directly. The head is left as the game
+  ships, since blunt hits paint and dent it.
 - **Armour out of ray tracing.** Armour is left out of ray traced reflections and lighting. This saves GPU time;
   armour then shows in no reflection. `armor_ray_tracing=1` puts it back.
 - **No shadows from distant armour.** Armour on fighters farther than 15 m casts no shadow.
@@ -110,7 +111,7 @@ A file from an older version is updated on the first start: the settings whose d
 | `corpse_sleep` | 1 | Dead fighters lying still stop ticking until something moves them |
 | `armor_ray_tracing` | 0 | 0: armour is left out of ray traced reflections and lighting (saves GPU time); 1 as the game ships |
 | `body_bounds` | 1 | The body drops the game's 1000x bounds, so off-screen fighters can be skipped |
-| `head_leader_pose` | 1 | The head and skeleton meshes follow the body's bones directly |
+| `head_leader_pose` | 1 | The skeleton mesh follows the body's bones directly (the head is left as the game ships) |
 | `physics_islands` | 1 | Physics shares groups of touching bodies out among more CPU threads (same result) |
 | `island_min_per_worker` | 8 | Bodies or joints one thread takes before another joins in (the game uses 50) |
 | `thread_scheduling` | 1 | Animation and physics blending on worker threads, task priorities (same result) |

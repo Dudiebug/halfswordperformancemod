@@ -41,7 +41,9 @@ bool Near(double a, double b) { return std::fabs(a - b) < 1e-3; }
 // The game's bounds for a body are 1000x (radius ~940 m: never culled, its shadow always drawn). Its physics bodies
 // give bounds that follow the ragdoll; 2x leaves room for a limb that is between two bone updates.
 constexpr float kBodyBoundsScale = 2.0f;
-constexpr const char* kFollowers[2] = {"CharacterMesh_Head", "SK_Skeleton"};
+// Only the skeleton. The head (CharacterMesh_Head) is left to the game since 0.6.2: blunt hits paint it and squash it
+// with morph targets, and the game's vertex paint tasks are where its own crashes are; a leader pose head may add to them.
+constexpr const char* kFollower = "SK_Skeleton";
 }  // namespace
 
 bool ArmorFixes::Prepare() {
@@ -82,8 +84,8 @@ bool ArmorFixes::Prepare() {
     FProperty* tickOpt = skel ? FindProperty(skel, "VisibilityBasedAnimTickOption") : nullptr;
     tickOptOk_ = tickOpt && PropertySize(tickOpt) == 1;
     const bool followersOk = skel && FindProperty(skel, "AnimClass") && FindProperty(prim, "AttachSocketName") &&
-                             FindProperty(willie_, kFollowers[0]) && FindProperty(willie_, kFollowers[1]);
-    HSP_LOG("armour: SetVisibleInRayTracing %s, VisibilityBasedAnimTickOption %s, head and skeleton meshes %s",
+                             FindProperty(willie_, kFollower);
+    HSP_LOG("armour: SetVisibleInRayTracing %s, VisibilityBasedAnimTickOption %s, skeleton mesh %s",
             rtParam_.empty() ? "MISSING" : rtParam_.c_str(), tickOptOk_ ? "ok" : "MISSING", followersOk ? "ok" : "MISSING");
     followersOk_ = followersOk;
     return !unusable_;
@@ -162,17 +164,17 @@ void ArmorFixes::FixBody(UObject* body, Body& rec) {
     }
 }
 
-// CharacterMesh_Head (which = 0) or SK_Skeleton (1). Only when the mesh copies the body's pose the way armour does:
+// SK_Skeleton. Only when the mesh copies the body's pose the way armour does:
 // a CopyPose anim blueprint, attached to the body at its root with no offset. Anything else is logged and left alone.
-void ArmorFixes::FixFollower(UObject* fighter, UObject* body, int which, Body& rec) {
-    UObject* const* field = Field<UObject*>(fighter, kFollowers[which]);
+void ArmorFixes::FixFollower(UObject* fighter, UObject* body, Body& rec) {
+    UObject* const* field = Field<UObject*>(fighter, kFollower);
     UObject* m = field ? *field : nullptr;
-    UObject*& done = rec.follower[which];
-    if (done && done != m) done = nullptr;   // the game replaced the mesh (a new head): the old one is gone
+    UObject*& done = rec.follower;
+    if (done && done != m) done = nullptr;   // the game replaced the mesh: the old one is gone
     const bool want = active_ && s_.headLeaderPose && followersOk_;
     if (!Alive(m) || !followersOk_) return;
     if (!want && done && SetLeader(m, nullptr)) done = nullptr;
-    if (done || (!want && followerLogged_[which])) return;
+    if (done || (!want && followerLogged_)) return;
     UClass* const* anim = Field<UClass*>(m, "AnimClass");
     const std::string animName = anim && *anim ? ObjectName(reinterpret_cast<UObject*>(*anim)) : "none";
     const FName* socket = Field<FName>(m, "AttachSocketName");
@@ -184,9 +186,9 @@ void ArmorFixes::FixFollower(UObject* fighter, UObject* body, int which, Body& r
     const bool offsetOk = loc && rot && sc && Near(loc->x, 0) && Near(loc->y, 0) && Near(loc->z, 0) && Near(rot->pitch, 0) &&
                           Near(rot->yaw, 0) && Near(rot->roll, 0) && Near(sc->x, 1) && Near(sc->y, 1) && Near(sc->z, 1);
     const bool copyPose = animName.find("CopyPose") != std::string::npos;
-    if (!followerLogged_[which]) {
-        followerLogged_[which] = true;
-        HSP_LOG("follower: %s anim %s, on the body %s, socket %s, offset %s", kFollowers[which], animName.c_str(), parentOk ? "yes" : "no",
+    if (!followerLogged_) {
+        followerLogged_ = true;
+        HSP_LOG("follower: %s anim %s, on the body %s, socket %s, offset %s", kFollower, animName.c_str(), parentOk ? "yes" : "no",
                 socketOk ? "none" : socket ? NameToString(*socket).c_str() : "?", offsetOk ? "none" : "yes");
     }
     if (want && copyPose && parentOk && socketOk && offsetOk && SetLeader(m, body)) done = m;
@@ -256,9 +258,9 @@ void ArmorFixes::Pass(UObject* gameMode) {
             Body brec = bt == bodies_.end() || bt->second.mesh != body ? Body{} : bt->second;
             brec.mesh = body;
             FixBody(body, brec);
-            for (int i = 0; i < 2; ++i) FixFollower(w, body, i, brec);
+            FixFollower(w, body, brec);
             n.bodyBounds += brec.scale > 0;
-            n.headLeader += (brec.follower[0] != nullptr) + (brec.follower[1] != nullptr);
+            n.headLeader += brec.follower != nullptr;
             bodies[w] = brec;
         }
         if (!worn || !worn->data || worn->num <= 0 || worn->num > 256) continue;

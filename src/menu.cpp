@@ -174,7 +174,7 @@ const char* const kLabels[] = {
     "Weapons on the floor stop ticking",
     "Still corpses stop ticking",
     "Tighter body bounds",
-    "Head and skeleton follow the body",
+    "Skeleton follows the body",
     "Skip the game mode's empty tick",
     "Physics on more threads (same result)",
     "Animation on more threads (same result)",

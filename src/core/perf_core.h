@@ -28,7 +28,7 @@ struct Settings {
     bool skipEmptyGameModeTick = true;    // skip the game mode's empty Blueprint tick body (saves about a microsecond)
     bool corpseSleep = true;         // dead fighters lying still stop ticking until something moves them
     bool bodyBounds = true;          // the body drops the game's 1000x bounds
-    bool headLeaderPose = true;      // head and skeleton meshes follow the body's bones
+    bool headLeaderPose = true;      // the skeleton mesh follows the body's bones (the name is from when the head did too)
     bool armorRayTracing = false;    // false: armour is left out of hardware ray tracing (Lumen reflections, GI)
     bool physicsIslands = true;      // physics islands shared out among more worker threads (same result)
     int islandMinPerWorker = 8;      // bodies / constraints per worker before another one joins (the game: 50)
@@ -166,7 +166,7 @@ inline std::string SettingsIni(const Settings& s) {
     t += std::string("corpse_sleep=") + b(s.corpseSleep) + "\n";
     t += "; The body drops the 1000x bounds the game gives it (its animation then runs even off screen).\n";
     t += std::string("body_bounds=") + b(s.bodyBounds) + "\n";
-    t += "; The head and skeleton meshes follow the body's bones instead of copying them.\n";
+    t += "; The skeleton mesh follows the body's bones instead of copying them (the head is left as the game ships).\n";
     t += std::string("head_leader_pose=") + b(s.headLeaderPose) + "\n";
     t += "; 0 leaves armour out of ray traced reflections and lighting (saves GPU time; armour then shows in no reflection);\n";
     t += "; 1 keeps it in, as the game ships.\n";
