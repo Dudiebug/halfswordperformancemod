@@ -232,10 +232,12 @@ DWORD WINAPI ModMain(void*) {
     if (!g_settings.enabled) { HSP_LOG("disabled in HSPerf.ini"); return 0; }
     if (!Init(g_settings.forceUnknownBuild)) { HSP_LOG("engine: not a supported game build; the mod stays off"); return 0; }
     // Wait for the function, not just the class: a native class exists a moment before its functions are linked to it
-    // (seen under Proton, where the mod's thread gets here sooner).
+    // (seen under Proton, where the mod's thread gets here sooner). FindFunctionNow, not FindFunction: the cached lookup
+    // remembers "not there", so a first look before the functions were linked made every later one fail too.
     for (int i = 0;; ++i) {
         UObject* math = FindObject("KismetMathLibrary", "Class");
-        if (math && FindFunction(reinterpret_cast<UClass*>(math), "Add_IntInt")) {
+        if (math && FindFunctionNow(reinterpret_cast<UClass*>(math), "Add_IntInt")) {
+            FlushReflectionCache();   // nothing looked up while the classes were half linked is kept
             if (i) HSP_LOG("engine: Kismet functions ready after %.1f s", i * 0.5);
             break;
         }
